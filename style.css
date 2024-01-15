@@ -1,0 +1,125 @@
+body {
+  font-family: monospace;
+}
+
+@media print {
+  .tool {
+    display: none;
+  }
+  .rule_book, #rule_book_div {
+    font-size: 0;
+  }
+  form {
+    display: none;
+  }
+  .rule_tit {
+    display: none;
+  }
+  #timer {
+    font-size: 0;
+  }
+}
+
+table.board {
+  margin: auto;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+.board tbody {
+  border: 3px solid black;
+}
+
+.board th {
+  font-size: 15px;
+}
+
+#title_bar, #game_id {
+  cursor: pointer;
+}
+
+
+.board td {
+  width:  48px;
+  height: 48px;
+  text-align: center;
+  font-size: 26px;
+  color: #017;
+  border: 1px dashed black;
+  cursor: default;
+}
+
+@keyframes put_color {
+    0% { color: #017; background-color: #def; }
+   20% { color: #017; background-color: white; }
+  100% { color: #017; background-color: white; }
+}
+
+.board td.put_anime {
+  animation: put_color 48s linear 1;
+}
+
+.board td.put_err {
+  color: white;
+  background-color: #c44;
+}
+
+.board td.hint {
+  font-size: 27px;
+  font-family: Arial;
+  color: black;
+  cursor: not-allowed;
+}
+
+.board td.yoko {
+  border-right: 2px solid black;
+}
+
+.board tr.shita {
+  border-bottom: 2px solid black;
+}
+
+
+table.tool {
+  margin: auto;
+}
+
+.tool td {
+  width:  38px;
+  height: 38px;
+  text-align: center;
+  font-size: 25px;
+  font-family: Arial;
+  color: silver;
+  border: 2px solid silver;
+  cursor: pointer;
+}
+
+td.tool_sel  {
+  color: black;
+  border: 2px solid black;
+  cursor: not-allowed;
+}
+
+td.tool_fill {
+  background-color: #eee;
+}
+
+div.rule_tit {
+  font-family: Arial;
+  margin: auto;
+  padding-top: 1em;
+  font-size: 16;
+  width: 450px;
+  cursor: pointer;
+}
+
+div.rule_book {
+  font-family: Arial;
+  margin: auto;
+  padding-top:    0em;
+  padding-bottom: 3em;
+  font-size: 13px;
+  width: 450px;
+}
+
