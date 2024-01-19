@@ -18,7 +18,7 @@ const g_game = {
   cursor_bit: NumberPlace.ANY,
   start_time: 0, // 開始時刻
   pause_time: 0, // 中断したら
-  timer_id:   0, // setTimeout
+  timer_id:   0, // timeout id
   game_id: '',
   id_yobi: '', // 予備のid
   history: [], // プレイの記録
@@ -67,7 +67,7 @@ const make_random_id = () => {
 // スタートする処理、タイマ等
 
 const set_start_button = () => {
-  document.getElementById('game_id').textContent = '›› START';
+  document.getElementById('game_id').textContent = '➤ START';
   document.getElementById('timer').textContent   = '00:00:00';
   g_game.id_yobi = g_game.game_id;
   g_game.history = [];
@@ -110,7 +110,7 @@ const show_time = () => {
   if (el.textContent != txt) { // 変化があれば反映
     el.textContent = txt;
   }
-  g_game.timer_id = setTimeout(show_time, 10);
+  g_game.timer_id = setTimeout(show_time, 40); // ~24fps
 };
 
 const on_id_click = (e) => {
@@ -140,15 +140,8 @@ const check_gameover = () => {
   }
   ////////////////////////////////////
   // クリアした
-
-  // スコア：
-  // final_score = score + bonus
-  // score ... turn * n * 2
-  // bonus ... Math.max(0, (score * (81 - hint) - time))
-  //  hint ... この問題で公開されたヒント数
-  //  time ... 経過ミリ秒
   g_game.state = 'end';
-  clearTimeout(g_game.timer_id);
+  clearTimeout(g_game.timer_id); // Stop!
   const end_time = Date.now() - g_game.start_time + g_game.pause_time; // 時間
   // 最終スコア計算
   const uniq_pos = new Set();
@@ -159,31 +152,37 @@ const check_gameover = () => {
     uniq_pos.add(cur.pos);
     // cur.pt = 81 ~ 1
     const n = NumberPlace.bit2num(cur.num); // ANYではない = すべて数字で, 1~9
-    // 基礎点は最大で42,930点になる
-    score += (n * 2) * cur.pt;
+    score += (n * (n + 1) / 2) * cur.pt; // 三角数, 最大87,615pt
   }
   // bonus算出
-  const hint = g_game.hint_count;
-  const bonus = Math.max(0, score * (81 - hint) -  end_time);
+  const mokuhyo = 120000; // 目標点
+  const t50 = Math.round(end_time / 50);
+  const bonus = Math.max(0, score - t50);
   const final_score = score + bonus;
-  console.log(`CLEAR: ${final_score}`);
-  console.log(`base: ${score}, hint: ${hint}(81-x=${81-hint}), time: ${end_time}`);
-  // 表示
+  const wow = final_score >= mokuhyo? `≧ ${mokuhyo.toLocaleString()}pt!!`:
+    `- 目標 ${mokuhyo.toLocaleString()}pt まで残り ${(mokuhyo - final_score).toLocaleString()}pt`;
+  // log
+  console.log(`CLEAR: ${final_score.toLocaleString()}pt ${wow}`);
+  console.log(`base: ${score.toLocaleString()}pt`);
+  console.log(`time: ${t50.toLocaleString()}(${end_time.toLocaleString()}ms)`);
+  console.log(`bonus = ${score}pt - ${t50}time = ${bonus}`);
+  // 時間を表示
   const time = ms2hms(end_time);
   document.getElementById('timer').textContent = time;
+  // 得点を表示
   const ten = final_score.toLocaleString();
-  document.getElementById('title_bar').textContent = ten + ' pt';
+  document.getElementById('title_bar').textContent = ten + 'pt';
   // 次の問題をこっそり作っておく
   start_worker(make_random_id(), false);
-  // 通知
-  setTimeout(() => alert('Congratulations!\n\n' +
-    `SCORE: ${ten} pt${final_score > 1000000? '!!!':''}\n\n` +
-    `- TIME : ${time}\n` +
-    `- BASE : ${score.toLocaleString()} pt\n` +
-    `- BONUS: ${bonus.toLocaleString()} pt\n` +
-    `= ${score.toLocaleString()}pt * (81 - ${hint}hints) - ${end_time.toLocaleString()}ms\n\n` +
-    `ID: ${g_game.id_yobi}\n` +
-    `- HINT: ${hint}`), 100);
+  // 通知, 再描画させるため一拍置いてalert
+  setTimeout(() => alert('CONGRATULATIONS!\n\n' +
+    `SCORE: ${ten}pt\n` +
+    `${wow}\n\n` +
+    `TIME : ${time} (${end_time.toLocaleString()}ms)\n` +
+    `BASE : ${score.toLocaleString()}pt\n` +
+    `BONUS: ${bonus.toLocaleString()}pt\n` +
+    `= ${score.toLocaleString()}pt - ${t50.toLocaleString()}time\n` +
+    `\nGame URL:\n${g_game.url}?id=${g_game.id_yobi}`), 100);
 };
 
 
@@ -281,6 +280,15 @@ const on_titlebar_click = (e) => {
   }
 };
 
+// 丸投げ
+const on_timebar_click = () => {
+  if (g_game.state == 'playing' || g_game.state == 'pause') {
+    on_titlebar_click( {
+      target: document.getElementById('title_bar')
+    } );
+  }
+};
+
 ////////////////////////////////////////////
 // 書き込む数字を選ぶ
 
@@ -358,6 +366,7 @@ const create_board = (tar) => {
     time.setAttribute('colspan', '3');
     time.textContent = '00:00:00';
     time.setAttribute('id', 'timer');
+    time.addEventListener('click', on_timebar_click);
     tr.appendChild(time);
     //
     const g_id = mk_tag('th');
@@ -442,7 +451,7 @@ const get_game_url = () => {
   document.addEventListener('keydown', on_keyboard);
   const game_area = document.getElementById('game_area');
   const rule = document.getElementById('rule_tit_but');
-  rule.textContent = '▶ 遊び方 (click)';
+  rule.textContent = '➤ 遊び方 (click)';
   const book = document.getElementById('rule_book_div');
   book.style.display = 'none';
   rule.addEventListener('click', () => {
@@ -450,7 +459,7 @@ const get_game_url = () => {
       rule.textContent = '▼ 遊び方';
       book.style.display = 'block';
     } else {
-      rule.textContent = '▶ 遊び方';
+      rule.textContent = '➤ 遊び方';
       book.style.display = 'none';
     }
   });

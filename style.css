@@ -1,7 +1,3 @@
-body {
-  font-family: monospace;
-}
-
 @media print {
   .tool {
     display: none;
@@ -43,6 +39,7 @@ table.board {
   width:  48px;
   height: 48px;
   text-align: center;
+  font-family: Verdana;
   font-size: 26px;
   color: #017;
   border: 1px dashed black;
@@ -66,7 +63,7 @@ table.board {
 
 .board td.hint {
   font-size: 27px;
-  font-family: Arial;
+  font-family: Courier;
   color: black;
   cursor: not-allowed;
 }
@@ -89,7 +86,7 @@ table.tool {
   height: 38px;
   text-align: center;
   font-size: 25px;
-  font-family: Arial;
+  font-family: Verdana;
   color: silver;
   border: 2px solid silver;
   cursor: pointer;
@@ -121,5 +118,16 @@ div.rule_book {
   padding-bottom: 3em;
   font-size: 13px;
   width: 450px;
+}
+
+table.hyo {
+  margin: auto;
+  border-collapse: collapse;
+  background-color: white;
+}
+.hyo td {
+  border: 1px solid black;
+  text-align: center;
+  padding: 1px 8px 1px 8px;
 }
 

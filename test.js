@@ -183,8 +183,45 @@ function score_test3(k = 2) {
   console.log('sum = ' + sum);
 }
 
+function score_test4() {
+  let cnt = 81;
+  let sum = 0;
+  for (let n = 9; n >= 1; --n) {
+    let nsum = 0;
+    for (let k = 0; k < 9; ++k) {
+      const pt = cnt * (n * (n + 1) / 2);
+      sum += pt;
+      nsum += pt;
+      cnt -= 1;
+    }
+    console.log(`${n}: ${nsum}`);
+  }
+  console.log('-----------');
+  const best = sum;
+  //
+  cnt = 81;
+  sum = 0;
+  for (let n = 1; n <= 9; ++n) {
+    let nsum = 0;
+    for (let k = 0; k < 9; ++k) {
+      const pt = cnt * (n * (n + 1) / 2);
+      sum += pt;
+      nsum += pt;
+      cnt -= 1;
+    }
+    console.log(`${n}: ${nsum}`);
+  }
+  console.log('-----------');
+  console.log('best:', best);     // 87,615
+  console.log('worst:', sum);     // 34,155
+  console.log('sa:', best - sum); // 53,460
+  // 1h  = 3,600,000ms
+  // 10m =   600,000ms
+  // 30m = 1,800,000ms
+  // 999s = 16.65m
+}
 
 /////////////////////////////////////////////////////////////////////////
 //test1();
-score_test3(3);
+score_test4();
 //console.log( NumberPlace.is_illegal_hint(5) );
