@@ -39,21 +39,21 @@ table.board {
   width:  48px;
   height: 48px;
   text-align: center;
-  font-family: Verdana;
-  font-size: 26px;
-  color: #017;
+  font-family: Courier;
+  font-size: 29px;
+  color: midnightblue;
   border: 1px dashed black;
   cursor: default;
 }
 
 @keyframes put_color {
-    0% { color: #017; background-color: #def; }
-   20% { color: #017; background-color: white; }
-  100% { color: #017; background-color: white; }
+    0% { color: midnightblue; background-color: #def; }
+   20% { color: midnightblue; background-color: whitesmoke; }
+  100% { color: midnightblue; background-color: white; }
 }
 
 .board td.put_anime {
-  animation: put_color 48s linear 1;
+  animation: put_color 15s linear 1;
 }
 
 .board td.put_err {
