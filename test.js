@@ -2,8 +2,8 @@ import { NumberPlace } from "./NumberPlace.js";
 
 // 問題を生成する
 function test1() {
-//http://localhost:8000/?id=N658CE20P29
-  const seed = 0x658CE20;//Math.trunc(Math.random() * 10000) + 1;
+//http://localhost:8000/?id=NDDEFB1P29
+  const seed = 0xDDEFB1;//Math.trunc(Math.random() * 10000) + 1;
   const np = new NumberPlace(seed);
   const moto = np.create_quest(29);//32);
   const q = NumberPlace.translate(moto);
@@ -222,6 +222,6 @@ function score_test4() {
 }
 
 /////////////////////////////////////////////////////////////////////////
-//test1();
-score_test4();
+test1();
+//score_test4();
 //console.log( NumberPlace.is_illegal_hint(5) );
