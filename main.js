@@ -14,25 +14,27 @@ const g_game = {
    * end
    * restart
    */
-  cursor_bit : ANY,  // ツールの初期状態
-  start_time : 0,    // 開始時刻
-  pause_time : 0,    // 中断したら
-  timer_id   : 0,    // timeout のID
-  game_id    : '',   // S([hex]+) で、hex > 0 な乱数
-  history    : [],   // プレイの記録
-  quest      : null, // プレイ中の盤面状態: 初期状態のquestは変更不能とする
-  ans        : null, // 正解の局面
-  hint       : 0,    // 初期状態のquestにあるヒント数
-  lv         : 0,    // solve関数が解くために使った回数
-  url        : '',   // クリップボードにコピーするためのベースURL
+  cursor_bit : ANY,    // ツールの初期状態
+  start_time : 0,      // 開始時刻
+  pause_time : 0,      // 中断したら
+  timer_id   : 0,      // timeout のID
+  game_id    : '',     // S([hex]+) で、hex > 0 な乱数
+  history    : [],     // プレイの記録
+  quest      : null,   // プレイ中の盤面状態: 初期状態のquestは変更不能とする
+  ans        : null,   // 正解の局面
+  hint       : 0,      // 初期状態のquestにあるヒント数
+  lv         : 0,      // solve関数が解くために使った回数
+  url        : '',     // クリップボードにコピーするためのベースURL
+  mokuhyo    : 100000, // 目標点, デフォ１０万
 };
 
 ////////////////////////////////////////////
 // 問題をつくる
 
+/* debug
 const dump = (dat) => {
+  console.log('+-------+ cheat +-------+');
   const bar = '+-------+-------+-------+';
-  console.log(bar);
   for (let y = 0; y < 9; ++y) {
     let str = '| ';
     const yp = y * 9;
@@ -57,6 +59,7 @@ const dump = (dat) => {
     if (y % 3 == 2) console.log(bar);
   }
 };
+// */
 
 const set_game = (nid, button = true) => {
   const su = new Sudoku(nid);
@@ -67,8 +70,8 @@ const set_game = (nid, button = true) => {
       g_game.hint    = q.hint;
       g_game.lv      = Math.max(1, q.lv - 1);
       g_game.game_id = 'S' + nid.toString(16).toUpperCase();
-      console.log(`id: ${g_game.game_id}, hint: ${g_game.hint}`);
-      dump(q.ans);
+      console.log(`id: ${g_game.game_id}, hint: ${g_game.hint}, lv: ${g_game.lv}`);
+      //dump(q.ans);
       if (button) {
         set_start_button();
       } else {
@@ -175,12 +178,11 @@ const check_gameover = () => {
     score += (n * (n + 1) / 2) * cur.pt; // 三角数, 最大87,615pt
   }
   // bonus算出
-  const mokuhyo = 120000; // 目標点
   const t50 = Math.round(end_time / 50);
   const bonus = Math.max(0, score - t50);
   const final_score = score + bonus;
-  const wow = final_score >= mokuhyo? `≧ ${mokuhyo.toLocaleString()}pt!!`:
-    `- 目標 ${mokuhyo.toLocaleString()}pt まで残り ${(mokuhyo - final_score).toLocaleString()}pt`;
+  const wow = final_score >= g_game.mokuhyo? `≧ ${g_game.mokuhyo.toLocaleString()}pt!!!`:
+    `- 目標 ${g_game.mokuhyo.toLocaleString()}pt まで残り ${(g_game.mokuhyo - final_score).toLocaleString()}pt`;
   // log
   console.log(`CLEAR: ${final_score.toLocaleString()}pt ${wow}`);
   console.log(`base: ${score.toLocaleString()}pt`);
@@ -320,6 +322,8 @@ const on_titlebar_click = (e) => {
     show_time();
   } else if (g_game.state == 'restart') {
     if (window.confirm('新しい問題を始めますか？')) {
+      document.location.href = g_game.url;
+      /*
       set_game(make_random_id());
       for (let pos = 0; pos < 81; ++pos) {
         const elm = document.getElementById(`board-${pos}`);
@@ -329,6 +333,7 @@ const on_titlebar_click = (e) => {
         elm.textContent = '';
       }
       e.target.textContent = '81 PLACE';
+      */
     }
   }
 };
@@ -480,9 +485,24 @@ const create_tool = (tar) => {
 };
 
 
+
 const get_td = (n, key, str) => {
   const td = document.createElement(n >= 0? 'td': 'th');
-  td.textContent = n >= 0? localStorage.getItem(`s${n}_${key}`): key;
+  const m = n >= 0? localStorage.getItem(`s${n}_${key}`): key;
+  if (key === 'score') {
+    const num = parseInt(m);
+    if (num > g_game.mokuhyo) {
+           if (num >= 140000) g_game.mokuhyo = 150000;
+      else if (num >= 130000) g_game.mokuhyo = 140000;
+      else if (num >= 120000) g_game.mokuhyo = 130000;
+      else if (num >= 110000) g_game.mokuhyo = 120000;
+      else if (num >= 100000) g_game.mokuhyo = 110000;
+      else                    g_game.mokuhyo = 100000;
+    }
+    td.textContent = num.toLocaleString();
+  } else {
+    td.textContent = m;
+  }
   if (str) td.classList.add(str);
   return td;
 };
@@ -499,7 +519,7 @@ const add_score = (base, time, score) => {
   localStorage.setItem(`s${len}_hint`, g_game.hint);
   localStorage.setItem(`s${len}_base`, base.toLocaleString());
   localStorage.setItem(`s${len}_time`, time);
-  localStorage.setItem(`s${len}_score`, score.toLocaleString());
+  localStorage.setItem(`s${len}_score`, score);
   //
   const tbody = document.getElementById('score_body');
   if (tbody) {
@@ -577,15 +597,16 @@ const get_game_url = () => {
     // コピーできるようアドレスを取っておく
     g_game.url = (location.href).replace(/\?.+/, '');
     const old = /\?id=N[0-9a-fA-F]+P[2-9][0-9]/;
-    if (old.test(id)) { // TODO:***********************************************
-      const ma = id.match(reg);
-      const url = g_game.url + 'v0/' + location.href;
+    if (old.test(id)) {
+      const ma = id.match(old);
+      const url = g_game.url + 'v1/' + ma[0];
       console.log('移動:', url);
       alert(`古いID: '${id}' を検出しました。\n${url}\nに移動します。`);
       // move to
       document.location.href = url;
       return;
     }
+    // 新IDなら
     const reg = /\?id=S([0-9a-fA-F]+)/;
     if (reg.test(id)) {
       const ma = id.match(reg);
@@ -598,7 +619,7 @@ const get_game_url = () => {
   return make_random_id();
 };
 
-
+//////////////////
 // satart
 (() => {
   g_game.state = 'init';
@@ -610,7 +631,7 @@ const get_game_url = () => {
   const book = document.getElementById('rule_book_div');
   //book.style.display = 'none';
   rule.addEventListener('click', () => {
-    if (book.style.display == 'none') {
+    if (book.style.display != 'block') {
       rule.textContent = '▼ 遊び方';
       book.style.display = 'block';
       book.hidden = false;

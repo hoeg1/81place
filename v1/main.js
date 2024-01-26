@@ -435,6 +435,7 @@ const get_game_url = () => {
     const reg = /\?id=(N[0-9a-fA-F]+P[2-5][0-9])/;
     if (reg.test(id)) {
       const ma = id.match(reg);
+      console.log(`url: '${g_game.url}', ma[0]: ${ma[0]}`);
       return ma[1];
     }
     alert(`エラー\nID: '${id}' の読み込みに失敗しました。自動生成します。`);
