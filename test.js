@@ -1,227 +1,206 @@
-import { NumberPlace } from "./NumberPlace.js";
+import { Sudoku, new_board, is_single, cross_box, solve_quest, ANY, XPOS, YPOS, ROOM } from './sudoku.js';
 
-// 問題を生成する
-function test1() {
-//http://localhost:8000/?id=NDDEFB1P29
-  const seed = 0xDDEFB1;//Math.trunc(Math.random() * 10000) + 1;
-  const np = new NumberPlace(seed);
-  const moto = np.create_quest(29);//32);
-  const q = NumberPlace.translate(moto);
-  NumberPlace.print(q.ans);
-  NumberPlace.print(q.quest);
-  console.log('hint:', q.hint, ' seed:', seed);
-  const ret = NumberPlace.solve_quest(q.quest);
-  if (ret.ok) {
-    let flag = true;
+const dump_bin = (dat) => {
+  for (let y = 0; y < 9; ++y) {
+    let str = '';
+    const yp = y * 9;
+    for (let x = 0; x < 9; ++x) {
+      str += dat[x + yp].toString(2).padStart(10, '0');
+      str += x != 8? (x % 3 == 2? ',  ': ', '): ',';
+    }
+    console.log(str + (y % 3 == 2? '\n': ''));
+  }
+};
+
+const dump = (dat) => {
+  const bar = '+-------+-------+-------+';
+  console.log(bar);
+  for (let y = 0; y < 9; ++y) {
+    let str = '| ';
+    const yp = y * 9;
+    for (let x = 0; x < 9; ++x) {
+      switch (dat[x + yp]) {
+        case 0b000000000: str += 'e'; break;
+        case 0b000000001: str += '1'; break;
+        case 0b000000010: str += '2'; break;
+        case 0b000000100: str += '3'; break;
+        case 0b000001000: str += '4'; break;
+        case 0b000010000: str += '5'; break;
+        case 0b000100000: str += '6'; break;
+        case 0b001000000: str += '7'; break;
+        case 0b010000000: str += '8'; break;
+        case 0b100000000: str += '9'; break;
+        case 0b111111111: str += '_'; break;
+        default:          str += '.'; break;
+      }
+      str += x != 8? (x % 3 == 2? ' | ': ' '): ' |';
+    }
+    console.log(str);
+    if (y % 3 == 2) console.log(bar);
+  }
+};
+
+const is_mujun = (dat) => {
+  for (let i = 0; i < 81; ++i) {
+    if (!is_single(dat[i])) return true;
+    let x = dat[i];
+    let y = dat[i];
+    let b = dat[i];
+    cross_box(i, (p, ty) => {
+      switch (ty) {
+        case XPOS: x |= dat[p]; break;
+        case YPOS: y |= dat[p]; break;
+        case ROOM: b |= dat[p]; break;
+      }
+    });
+    if (x != ANY || y != ANY || b != ANY) return true;
+  }
+  return false;
+};
+
+////////////////////////////////////////////////////////////////////////////
+
+function ans_test() {
+  console.log('ans_test: 正解を作る');
+  const su = new Sudoku();
+  console.log('seed:', su.seed);
+  const ans = su.create_ans();
+  dump(ans);
+  console.log('矛盾:', is_mujun(ans)? 'あり': 'なし');
+}
+
+function open_test() {
+  console.log('open_test: 正解から対称的にヒントを開示。解けるかは不明');
+  const su = new Sudoku();
+  console.log('seed:', su.seed);
+  const ans = su.create_ans();
+  const dat = new_board();
+  const que = new_board();
+  su.open_duo(dat, que, ans, Sudoku.SAYU);
+  dump(que);
+}
+
+function open_test2() {
+  console.log('open_test 2: 正解から合理的に正解できるまで開示');
+  const su = new Sudoku();
+  console.log('seed:', su.seed);
+  const ans = su.create_ans();
+  const dat = new_board();
+  const que = new_board();
+  su.open_duo(dat, que, ans, Sudoku.CENTER);
+  let cnt = 0;
+  while (su.open_duo(dat, que, ans, Sudoku.CENTER, 1)) {
+    cnt += 1;
+    if (cnt % 100 == 99) console.log(cnt);
+  }
+  dump(que);
+}
+
+function slim_test() {
+  console.log('slim_test: 適当に作った問題から不要なヒントを除外');
+  const su = new Sudoku();
+  console.log('seed:', su.seed);
+  const ans = su.create_ans();
+  const dat = new_board();
+  const que = new_board();
+  su.open_duo(dat, que, ans, Sudoku.CENTER);
+  while (su.open_duo(dat, que, ans, Sudoku.CENTER, 1));
+  const skip = su.slim(que);
+  if (skip.length) {
+    const slim = new_board();
+    let hint = 0;
     for (let i = 0; i < 81; ++i) {
-      if (ret.solved[i] != q.ans[i]) {
-        console.log(`答えが違う: at ${i}, solve = ${ret.solved[i]}, ans = ${q.ans[i]}`);
-        flag = false;
-        break;
+      if (!skip.includes(i)) {
+        slim[i] = que[i];
+        if (que[i] != ANY) hint += 1;
       }
     }
-    if (flag) console.log('正しく解けた');
+    const level = solve_quest(slim);
+    if (level) {
+      console.log("解ける");
+      console.log(`level: ${level}`);
+      console.log(`hint: ${hint}  (81-h = ${81-hint})`);
+      dump(slim);
+    } else {
+      throw new Error("解けない！");
+      dump(slim);
+    }
   } else {
-    console.log('解けない');
+    dump(que);
+    throw new Error("！スリム化失敗");
   }
 }
 
-// 文字列からロードして解く
-function test2() {
-const mondai = [
-  { ans: "\
- 5  3  9    2  1  4    8  6  7 \
- 7  4  8    3  6  5    9  2  1 \
- 2  1  6    9  8  7    3  5  4 \
-\
- 8  2  3    1  4  9    6  7  5 \
- 4  9  5    6  7  3    2  1  8 \
- 1  6  7    8  5  2    4  3  9 \
-\
- 6  7  2    5  9  8    1  4  3 \
- 9  5  1    4  3  6    7  8  2 \
- 3  8  4    7  2  1    5  9  6 \
-    ",
-  que: "\
-    .39 2.. .6. \
-    7.8 ..5 9.1 \
-    2.. ... ..4 \
-    \
-    ... 1.9 .7. \
-    4.. 6.3 218 \
-    1.7 85. 43. \
-    \
-    672 ... 14. \
-    95. .36 782 \
-    384 .2. 596" },
-  {que: "\
-  ..2 ... ..8 \
-  634 .9. ... \
-  ... .76 2.. \
-  \
-  ... ... .9. \
-  8.. 7.. ... \
-  17. .8. 5.. \
-  ... 8.. ..3 \
-  .29 ... ..1 \
-  41. .3. ... ",
-  ans: "\
-  752 341 968 \
-  634 298 175 \
-  981 576 234 \
-  \
-  243 165 897 \
-  895 724 316 \
-  176 983 542 \
-  \
-  567 819 423 \
-  329 457 681 \
-  418 632 759"},
-  {ans:"\
- 3  1  4 | 2  7  8 | 6  5  9 \
- 6  8  9 | 4  3  5 | 2  7  1 \
- 2  7  5 | 9  6  1 | 8  4  3 \
- 5  3  8 | 7  4  2 | 9  1  6 \
- 7  2  6 | 8  1  9 | 4  3  5 \
- 4  9  1 | 6  5  3 | 7  2  8 \
- 8  4  3 | 1  2  6 | 5  9  7 \
- 1  6  7 | 5  9  4 | 3  8  2 \
- 9  5  2 | 3  8  7 | 1  6  4 ",
-    que:"\
-_  _  4 | _  _  _ | _  _  9 \
-_  8  _ | _  3  5 | 2  _  1 \
-2  7  _ | 9  _  _ | _  _  _ \
-_  3  _ | _  4  2 | _  _  6 \
-7  _  _ | _  _  _ | _  3  _ \
-_  _  _ | _  _  3 | _  2  8 \
-_  4  _ | 1  _  6 | 5  _  _ \
-_  6  _ | _  9  _ | 3  _  _ \
-_  _  2 | 3  _  7 | 1  _  _ "},
-];
-  const np = new NumberPlace();
-  const sel = 1;
-  const que = NumberPlace.load_quest(mondai[sel].que, true); // use_put
-  NumberPlace.print(que); // とりまputしたところまで
-  NumberPlace.solve(que); // 解く
-  let flag = true;
-  const ans = NumberPlace.load_quest(mondai[sel].ans, false);
-  for (let i = 0; i < 81; ++i) {
-    if (que[i] != ans[i]) {
-      console.log(`err: i = ${i}, ${que[i]} != ${ans[i]}`);
-      flag = false;
+function translate_test() {
+  console.log('slim_test: 適当に作った問題から不要なヒントを除外');
+  const su = new Sudoku();
+  console.log('seed:', su.seed);
+  const ans = su.create_ans();
+  const dat = new_board();
+  const que = new_board();
+  su.open_duo(dat, que, ans, Sudoku.CENTER);
+  while (su.open_duo(dat, que, ans, Sudoku.CENTER, 1));
+  const skip = su.slim(que);
+  if (skip.length) {
+    const slim = new_board();
+    let hint = 0;
+    for (let i = 0; i < 81; ++i) {
+      if (!skip.includes(i)) {
+        slim[i] = que[i];
+        if (que[i] != ANY) hint += 1;
+      }
+    }
+    const level = solve_quest(slim);
+    if (level) {
+      console.log(`解ける: level: ${level}, hint: ${hint}  (81-h = ${81-hint})`);
+      dump(slim);
+      const tra = su.translate({
+        quest: slim,
+        hint : hint, // count
+        ans  : ans
+      });
+      const level_2 = solve_quest(tra.quest);
+      if (level_2) {
+        console.log(`翻訳後: 解ける: level: ${level_2}, hint: ${tra.hint}`);
+        dump(tra.quest);
+      } else {
+        throw new Error("翻訳後が解けない");
+        dump(tra.quest);
+      }
+    } else {
+      throw new Error("解けない！");
+      dump(slim);
+    }
+  } else {
+    dump(que);
+    throw new Error("！スリム化失敗");
+  }
+}
+
+function taisho_test() {
+  const su = new Sudoku();
+  for (let k = 0; k < Sudoku.TYPE_MAX; ++k) {
+    console.log(['CENTER', 'JOGE','SAYU','GKESA','KESA'][k]);
+    for (let i = 0; i < 81; ++i) {
+      const t = su.get_taisho(i);
+      if (t < 0 || t >= 81) {
+        console.log(`err at ${i}, t = ${t}`);
+      }
     }
   }
-  if (flag) {
-    console.log('解けた。ansと同じ');
-    NumberPlace.print(que); // 結果
-  }
 }
 
-
-// Game id を解釈
-function test3() {
-  const str1 = 'N89aFcDP32';
-  // ok
-  console.log(`done: '${str1}' is`, NumberPlace.id_to_seed_object(str1));
-  // ng 1
-  const str2 = 'N8x58P32';
-  try {
-    console.log(str2, 'is', NumberPlace.id_to_seed_object(str2));
-  } catch (e) {
-    console.log('err:', e.message);
-  }
-  // ng 2
-  const str3 = 'N8c58P88';
-  try {
-    console.log(str3, 'is', NumberPlace.id_to_seed_object(str3));
-  } catch (e) {
-    console.log('err:', e.message);
-  }
+function 問題作成(seed = Math.trunc(Math.random() * 200000000) + 1) {
+  const su = new Sudoku(seed);
+  su.create_quest().then(q => {
+    console.log(`create_quest: seed = ${seed.toString(16)}(${seed})`);
+    const k = (q.lv - 1) + (81-q.hint);
+    console.log(`Lv: ${q.lv - 1}, Hint: ${q.hint}(${81-q.hint}), k: ${k}`);
+    dump(q.quest);
+  });
 }
 
-function score_test() {
-  let cnt = 81;
-  let sum = 0;
-  for (let i = 9; i >= 1; --i) {
-    for (let j = 0; j < 9; ++j) {
-      const pt = cnt * i;
-      sum += pt;
-      console.log(`${String(cnt).padStart(2, '0')}: ${pt}`);
-      cnt -= 1;
-    }
-  }
-  console.log('sum = ' + sum);
-}
+const okini = [0x9a5b0f3, 0x279911, 142702495];
+問題作成();//okini[0]);
 
-function score_test2() {
-  let cnt = 81;
-  let sum = 0;
-  for (let i = 9; i >= 1; --i) {
-    for (let j = 0; j < 9; ++j) {
-      const pt = cnt * i * i;
-      sum += pt;
-      console.log(`${String(cnt).padStart(2, '0')}: ${pt}`);
-      cnt -= 1;
-    }
-  }
-  // 153,765
-  console.log('sum = ' + sum);
-}
 
-function score_test3(k = 2) {
-  let cnt = 81;
-  let sum = 0;
-  for (let i = 9; i >= 1; --i) {
-    for (let j = 0; j < 9; ++j) {
-      const pt = cnt * i * k;
-      sum += pt;
-      console.log(`${String(cnt).padStart(2, '0')}: ${pt}`);
-      cnt -= 1;
-    }
-  }
-  // 42,930
-  console.log('sum = ' + sum);
-}
-
-function score_test4() {
-  let cnt = 81;
-  let sum = 0;
-  for (let n = 9; n >= 1; --n) {
-    let nsum = 0;
-    for (let k = 0; k < 9; ++k) {
-      const pt = cnt * (n * (n + 1) / 2);
-      sum += pt;
-      nsum += pt;
-      cnt -= 1;
-    }
-    console.log(`${n}: ${nsum}`);
-  }
-  console.log('-----------');
-  const best = sum;
-  //
-  cnt = 81;
-  sum = 0;
-  for (let n = 1; n <= 9; ++n) {
-    let nsum = 0;
-    for (let k = 0; k < 9; ++k) {
-      const pt = cnt * (n * (n + 1) / 2);
-      sum += pt;
-      nsum += pt;
-      cnt -= 1;
-    }
-    console.log(`${n}: ${nsum}`);
-  }
-  console.log('-----------');
-  console.log('best:', best);     // 87,615
-  console.log('worst:', sum);     // 34,155
-  console.log('sa:', best - sum); // 53,460
-  // 1h  = 3,600,000ms
-  // 10m =   600,000ms
-  // 30m = 1,800,000ms
-  // 999s = 16.65m
-}
-
-/////////////////////////////////////////////////////////////////////////
-test1();
-//score_test4();
-//console.log( NumberPlace.is_illegal_hint(5) );

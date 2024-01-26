@@ -1,4 +1,4 @@
-import { Sudoku, ANY, bit2num, cross_box } from './sudoku.js';
+import { NumberPlace } from './NumberPlace.js';
 // python3 -m http.server 8000
 // localhost:8000
 
@@ -13,75 +13,53 @@ const g_game = {
    * playing
    * end
    * restart
+   *
    */
-  cursor_bit : ANY,  // ツールの初期状態
-  start_time : 0,    // 開始時刻
-  pause_time : 0,    // 中断したら
-  timer_id   : 0,    // timeout のID
-  game_id    : '',   // S([hex]+) で、hex > 0 な乱数
-  history    : [],   // プレイの記録
-  quest      : null, // プレイ中の盤面状態: 初期状態のquestは変更不能とする
-  ans        : null, // 正解の局面
-  hint       : 0,    // 初期状態のquestにあるヒント数
-  lv         : 0,    // solve関数が解くために使った回数
-  url        : '',   // クリップボードにコピーするためのベースURL
+  cursor_bit: NumberPlace.ANY,
+  start_time: 0, // 開始時刻
+  pause_time: 0, // 中断したら
+  timer_id:   0, // timeout id
+  game_id: '',
+  id_yobi: '', // 予備のid
+  history: [], // プレイの記録
+  quest     : null,
+  ans       : null,
+  hint_count: 0,
+  err_tar: null,
+  url: '',
 };
 
 ////////////////////////////////////////////
 // 問題をつくる
 
-const dump = (dat) => {
-  const bar = '+-------+-------+-------+';
-  console.log(bar);
-  for (let y = 0; y < 9; ++y) {
-    let str = '| ';
-    const yp = y * 9;
-    for (let x = 0; x < 9; ++x) {
-      switch (dat[x + yp]) {
-        case 0b000000000: str += 'e'; break;
-        case 0b000000001: str += '1'; break;
-        case 0b000000010: str += '2'; break;
-        case 0b000000100: str += '3'; break;
-        case 0b000001000: str += '4'; break;
-        case 0b000010000: str += '5'; break;
-        case 0b000100000: str += '6'; break;
-        case 0b001000000: str += '7'; break;
-        case 0b010000000: str += '8'; break;
-        case 0b100000000: str += '9'; break;
-        case 0b111111111: str += '.'; break;
-        default:          str += '_'; break;
-      }
-      str += x != 8? (x % 3 == 2? ' | ': ' '): ' |';
+const start_worker = (id, button = true) => {
+  g_game.game_id = id;
+  const w = new Worker('worker.js', {type: 'module'});
+  // 送信
+  w.postMessage({
+    type: 'create',
+    game_id: id
+  });
+  // 受信
+  w.onmessage = (e) => {
+    const mondai = e.data.result;
+    g_game.quest      = mondai.quest;
+    g_game.ans        = mondai.ans;
+    g_game.hint_count = mondai.hint;
+    if (button) {
+      set_start_button();
+    } else {
+      g_game.state = 'restart';
     }
-    console.log(str);
-    if (y % 3 == 2) console.log(bar);
-  }
-};
-
-const set_game = (nid, button = true) => {
-  const su = new Sudoku(nid);
-  try { // 念のため
-    su.create_quest().then( q => {
-      g_game.quest   = q.quest;
-      g_game.ans     = q.ans;
-      g_game.hint    = q.hint;
-      g_game.lv      = Math.max(1, q.lv - 1);
-      g_game.game_id = 'S' + nid.toString(16).toUpperCase();
-      console.log(`id: ${g_game.game_id}, hint: ${g_game.hint}`);
-      dump(q.ans);
-      if (button) {
-        set_start_button();
-      } else {
-        g_game.state = 'restart';
-      }
-    });
-  } catch (e) {
-    alert(e);
-  }
+  };
 };
 
 const make_random_id = () => {
-  return Math.trunc(Math.random() * 200000000) + 1;
+  const HINTS = [28, 29, 30, 31, 32, 32, 33, 33, 34];
+  return NumberPlace.create_id_str(
+      Math.trunc(Math.random() * 200000000), // 2 億
+      HINTS[(Math.random() * HINTS.length) | 0]
+    );
 };
 
 
@@ -91,6 +69,7 @@ const make_random_id = () => {
 const set_start_button = () => {
   document.getElementById('game_id').textContent = '➤ START';
   document.getElementById('timer').textContent   = '00:00:00';
+  g_game.id_yobi = g_game.game_id;
   g_game.history = [];
   g_game.state   = 'can_start';
 };
@@ -100,9 +79,9 @@ const draw_hint = () => {
   for (let pos = 0; pos < 81; ++pos) {
     const cur = g_game.quest[pos];
     const el = document.getElementById(`board-${pos}`);
-    if (cur != ANY) {
+    if (cur != NumberPlace.ANY) {
       el.classList.add('hint');
-      el.textContent = bit2num(cur); // ANYではない = 常に数字
+      el.textContent = NumberPlace.bit2num(cur); // ANYではない = 常に数字
     } else {
       el.textContent = '';
     }
@@ -142,17 +121,18 @@ const on_id_click = (e) => {
     draw_hint();
     g_game.pause_time = 0;
     g_game.start_time = Date.now();
+    g_game.err_tar = null;
     g_game.state = 'playing';
     show_time();
   } else if (s == 'playing' || s == 'pause' || s == 'end' || s == 'restart') {
-    console.log('copy:', g_game.url + '?id=' + g_game.game_id);
-    navigator.clipboard.writeText(g_game.url + '?id=' + g_game.game_id);
+    console.log('copy:', g_game.url + '?id=' + g_game.id_yobi);
+    navigator.clipboard.writeText(g_game.url + '?id=' + g_game.id_yobi);
   }
 };
 
 
 ////////////////////////////////////////////
-// クリア判定
+// クリックしたとき＆クリア判定
 
 const check_gameover = () => {
   for (let pos = 0; pos < 81; ++pos) {
@@ -171,7 +151,7 @@ const check_gameover = () => {
     if (uniq_pos.has(cur.pos)) continue; // クリック位置の重複を除外
     uniq_pos.add(cur.pos);
     // cur.pt = 81 ~ 1
-    const n = bit2num(cur.num); // ANYではない = すべて数字で, 1~9
+    const n = NumberPlace.bit2num(cur.num); // ANYではない = すべて数字で, 1~9
     score += (n * (n + 1) / 2) * cur.pt; // 三角数, 最大87,615pt
   }
   // bonus算出
@@ -192,15 +172,8 @@ const check_gameover = () => {
   // 得点を表示
   const ten = final_score.toLocaleString();
   document.getElementById('title_bar').textContent = ten + 'pt';
-  // ハイスコア記録
-  add_score(score, time, final_score);
-  g_game.state = 'restart';
-  for (let pos = 0; pos < 81; ++pos) {
-    const elm = document.getElementById(`board-${pos}`);
-    if (elm.classList.contains('cur_num')) {
-      elm.classList.remove('cur_num');
-    }
-  }
+  // 次の問題をこっそり作っておく
+  start_worker(make_random_id(), false);
   // 通知, 再描画させるため一拍置いてalert
   setTimeout(() => alert('CONGRATULATIONS!\n\n' +
     `SCORE: ${ten}pt\n` +
@@ -209,56 +182,9 @@ const check_gameover = () => {
     `BASE : ${score.toLocaleString()}pt\n` +
     `BONUS: ${bonus.toLocaleString()}pt\n` +
     `= ${score.toLocaleString()}pt - ${t50.toLocaleString()}time\n` +
-    `\nGame URL:\n${g_game.url}?id=${g_game.game_id}`), 100);
+    `\nGame URL:\n${g_game.url}?id=${g_game.id_yobi}`), 100);
 };
 
-
-// 選択中の数字の効きをハイライト
-const hi_num = () => {
-  if (g_game.state != 'playing' || document.getElementById('show_hint').checked) return;
-  const bit = g_game.cursor_bit;
-  const ig = new Set();
-  for (let i = 0; i < 81; ++i) {
-    const elm = document.getElementById(`board-${i}`);
-    if (elm.classList.contains('cur_num')) {
-      elm.classList.remove('cur_num');
-    }
-    if (g_game.quest[i] != ANY) {
-      ig.add(i);
-      if (bit != ANY && bit == g_game.quest[i]) {
-        cross_box(i, (p, _) => ig.add(p));
-      }
-    }
-  }
-  for (let pos of ig) {
-    const el = document.getElementById(`board-${pos}`);
-    if (!el.classList.contains('cur_num')) {
-      el.classList.add('cur_num');
-    }
-  }
-};
-
-// 矛盾をチェック
-const ng_search = () => {
-  const ng = new Set();
-  for (let i = 0; i < 81; ++i) {
-    const cur = g_game.quest[i];
-    cross_box(i, (p, _) => {
-      if (g_game.quest[p] == cur) {
-        ng.add(i);
-        ng.add(p);
-      }
-    });
-  }
-  for (let i = 0; i < 81; ++i) {
-    const elm = document.getElementById(`board-${i}`);
-    if (ng.has(i)) {
-      elm.classList.add('ng_num');
-    } else if (elm.classList.contains('ng_num')) {
-      elm.classList.remove('ng_num');
-    }
-  }
-};
 
 ///////////////////////////////////////////////////////////////////////////
 // 問題をクリックしたとき
@@ -268,9 +194,25 @@ const on_board_click = (e) => {
     const click_pos = parseInt(ma[1]);
     if (g_game.quest[click_pos] == g_game.cursor_bit) return;
     // 表示
-    const n = bit2num(g_game.cursor_bit); // ANYなら10
+    const n = NumberPlace.bit2num(g_game.cursor_bit);
     e.target.textContent = n == 10? '': n.toString();
-    // 書き込む
+    if (e.target.classList.contains('put_anime')) {
+      e.target.classList.remove('put_anime');
+    }
+    // 前の手番で即エラーなら赤色を非表示
+    if (g_game.err_tar) {
+      g_game.err_tar.classList.remove('put_err');
+      g_game.err_tar = null;
+    }
+    // 消しゴムではなくて、その数字が即エラーな局面なら
+    if (n != 10 && NumberPlace.find_same(g_game.quest, click_pos, g_game.cursor_bit)) {
+      // 赤く強調
+      e.target.classList.add('put_err');
+      g_game.err_tar = e.target;
+    } else {
+      // でなければ穏当に青く表示する＝実は致命的な矛盾かもしれないが探索しない
+      e.target.classList.add('put_anime');
+    }
     g_game.quest[click_pos] = g_game.cursor_bit;
     if (g_game.history.length < 81) {
       g_game.history.push({
@@ -282,8 +224,6 @@ const on_board_click = (e) => {
       document.getElementById('title_bar').textContent =
         `${81 - g_game.history.length} PLACE`;
     }
-    ng_search();
-    hi_num();
     check_fill_num();
     check_gameover();
   }
@@ -313,22 +253,29 @@ const on_titlebar_click = (e) => {
     e.target.textContent = `${81 - g_game.history.length} PLACE`;
     for (let pos = 0; pos < 81; ++pos) {
       const el = document.getElementById(`board-${pos}`);
-      const n = bit2num(g_game.quest[pos]);
+      const n = NumberPlace.bit2num(g_game.quest[pos]);
       el.textContent = n == 10? '': n;
     }
     g_game.state = 'playing';
     show_time();
   } else if (g_game.state == 'restart') {
     if (window.confirm('新しい問題を始めますか？')) {
-      set_game(make_random_id());
       for (let pos = 0; pos < 81; ++pos) {
         const elm = document.getElementById(`board-${pos}`);
+        // 余計なスタイルを除去
+        if (elm.classList.contains('put_anime')) {
+          elm.classList.remove('put_anime');
+        }
+        if (elm.classList.contains('put_err')) {
+          elm.classList.remove('put_err');
+        }
         if (elm.classList.contains('hint')) {
           elm.classList.remove('hint');
         }
         elm.textContent = '';
       }
       e.target.textContent = '81 PLACE';
+      set_start_button();
     }
   }
 };
@@ -345,11 +292,10 @@ const on_timebar_click = () => {
 ////////////////////////////////////////////
 // 書き込む数字を選ぶ
 
-// 置き尽くしたかチェック
 const check_fill_num = () => {
   const lst = new Array(11).fill(0);
   for (let i = 0; i < 81; ++i) {
-    lst[ bit2num( g_game.quest[i] ) ] += 1;
+    lst[ NumberPlace.bit2num( g_game.quest[i] ) ] += 1;
   }
   for (let i = 1; i < 10; ++i) {
     const tool = 1 << (i - 1);
@@ -366,26 +312,24 @@ const set_tool = (bit) => {
   if (g_game.cursor_bit == bit) return;
   g_game.cursor_bit = bit;
   for (let i = 10; i > 0; --i) {
-    const toi = i == 10? ANY: 1 << (i - 1);
+    const toi = i == 10? NumberPlace.ANY: 1 << (i - 1);
     const elm = document.getElementById('tool-' + toi);
     elm.classList.remove('tool_sel');
   }
   document.getElementById('tool-' + bit).classList.add('tool_sel');
-  // 効きをハイライト
-  hi_num();
 };
 
 const on_keyboard = (e) => {
   if (/[1-9]/.test(e.key)) {
     set_tool(1 << (parseInt(e.key) - 1));
   } else if (/[ 0]/.test(e.key)) {
-    set_tool(ANY);
+    set_tool(NumberPlace.ANY);
   } else if (e.key == 'a') {
-    const n = (bit2num(g_game.cursor_bit) + 1) % 10;
-    set_tool(n == 0? ANY: 1 << (n - 1));
+    const n = (NumberPlace.bit2num(g_game.cursor_bit) + 1) % 10;
+    set_tool(n == 0? NumberPlace.ANY: 1 << (n - 1));
   } else if (e.key == 'd') {
-    const n = bit2num(g_game.cursor_bit) - 1;
-    set_tool(n == 0? ANY: 1 << (n - 1));
+    const n = NumberPlace.bit2num(g_game.cursor_bit) - 1;
+    set_tool(n == 0? NumberPlace.ANY: 1 << (n - 1));
   }
 };
 
@@ -468,7 +412,7 @@ const create_tool = (tar) => {
       const td = mk_tag('td');
       td.innerHTML = i == 10? '⌫': i;
       // bit
-      const toi = i == 10? ANY: 1 << (i - 1);
+      const toi = i == 10? NumberPlace.ANY: 1 << (i - 1);
       td.setAttribute('id', `tool-${toi}`);
       if (i == 10) td.classList.add('tool_sel');
       td.addEventListener('click', on_tool_click);
@@ -477,94 +421,6 @@ const create_tool = (tar) => {
     table.appendChild(tr);
   }
   tar.appendChild(table);
-};
-
-
-const get_td = (n, key, str) => {
-  const td = document.createElement(n >= 0? 'td': 'th');
-  td.textContent = n >= 0? localStorage.getItem(`s${n}_${key}`): key;
-  if (str) td.classList.add(str);
-  return td;
-};
-
-const add_score = (base, time, score) => {
-  let len = localStorage.getItem('score_len');
-  if (!len) len = 0;
-  else len = parseInt(len);
-  localStorage.setItem('score_len', len + 1);
-  const ds = get_date_str();
-  localStorage.setItem(`s${len}_date`, ds);
-  localStorage.setItem(`s${len}_id`, g_game.game_id);
-  localStorage.setItem(`s${len}_lv`, g_game.lv);
-  localStorage.setItem(`s${len}_hint`, g_game.hint);
-  localStorage.setItem(`s${len}_base`, base.toLocaleString());
-  localStorage.setItem(`s${len}_time`, time);
-  localStorage.setItem(`s${len}_score`, score.toLocaleString());
-  //
-  const tbody = document.getElementById('score_body');
-  if (tbody) {
-    const tr = document.createElement('tr');
-    tr.appendChild(get_td(len, 'date'));
-    tr.appendChild(get_td(len, 'id'));
-    tr.appendChild(get_td(len, 'hint'));
-    tr.appendChild(get_td(len, 'base'));
-    tr.appendChild(get_td(len, 'time'));
-    tr.appendChild(get_td(len, 'score', 'add_pt'));
-    tbody.appendChild(tr);
-  } else {
-    load_score();
-  }
-};
-
-const get_date_str = () => {
-  const d = new Date();
-  return `${d.getFullYear()-2000}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-};
-
-const load_score = () => {
-  const len = localStorage.getItem('score_len');
-  if (!len) return;
-  const table = document.createElement('table');
-  const th = document.createElement('thead');
-  const htr = document.createElement('tr');
-  htr.appendChild(get_td(-1, 'Date'));
-  htr.appendChild(get_td(-1, 'ID'));
-  htr.appendChild(get_td(-1, 'Hint'));
-  htr.appendChild(get_td(-1, 'Base'));
-  htr.appendChild(get_td(-1, 'Time'));
-  htr.appendChild(get_td(-1, 'SCORE'));
-  th.appendChild(htr);
-  table.appendChild(th);
-  const tb = document.createElement('tbody');
-  tb.setAttribute('id', 'score_body');
-  for (let i = 0; i < parseInt(len); ++i) {
-    const tr = document.createElement('tr');
-    tr.appendChild(get_td(i, 'date'));
-    tr.appendChild(get_td(i, 'id'));
-    tr.appendChild(get_td(i, 'hint'));
-    tr.appendChild(get_td(i, 'base'));
-    tr.appendChild(get_td(i, 'time'));
-    tr.appendChild(get_td(i, 'score', 'add_pt'));
-    tb.appendChild(tr);
-  }
-  table.appendChild(tb);
-
-
-  const hs = document.getElementById('hi_score');
-  // button
-  const btn = document.createElement('button');
-  btn.textContent = 'REMOVE ALL';
-  btn.addEventListener('click', (e) => {
-    if (window.confirm('これまでの履歴をすべて消去します')) {
-      localStorage.clear();
-      while (hs.firstChild) {
-        hs.removeChild(hs.firstChild);
-      }
-    }
-  });
-  //
-  hs.appendChild(table);
-  hs.appendChild(btn);
 };
 
 ////////////////////////////////////////////
@@ -576,23 +432,12 @@ const get_game_url = () => {
   if (id) {
     // コピーできるようアドレスを取っておく
     g_game.url = (location.href).replace(/\?.+/, '');
-    const old = /\?id=N[0-9a-fA-F]+P[2-9][0-9]/;
-    if (old.test(id)) { // TODO:***********************************************
-      const ma = id.match(reg);
-      const url = g_game.url + 'v0/' + location.href;
-      console.log('移動:', url);
-      alert(`古いID: '${id}' を検出しました。\n${url}\nに移動します。`);
-      // move to
-      document.location.href = url;
-      return;
-    }
-    const reg = /\?id=S([0-9a-fA-F]+)/;
+    const reg = /\?id=(N[0-9a-fA-F]+P[2-5][0-9])/;
     if (reg.test(id)) {
       const ma = id.match(reg);
-      const  n = parseInt(ma[1], 16);
-      if (n) return n; // 0 や NaNじゃない
+      return ma[1];
     }
-    alert(`エラー\nID: '${id}' の読み込みに失敗しました。\n自動生成します。`);
+    alert(`エラー\nID: '${id}' の読み込みに失敗しました。自動生成します。`);
   }
   if (g_game.url == '') g_game.url = location.href;
   return make_random_id();
@@ -608,37 +453,23 @@ const get_game_url = () => {
   const rule = document.getElementById('rule_tit_but');
   rule.textContent = '➤ 遊び方 (click)';
   const book = document.getElementById('rule_book_div');
-  //book.style.display = 'none';
+  book.style.display = 'none';
   rule.addEventListener('click', () => {
     if (book.style.display == 'none') {
       rule.textContent = '▼ 遊び方';
       book.style.display = 'block';
-      book.hidden = false;
     } else {
       rule.textContent = '➤ 遊び方';
       book.style.display = 'none';
-      book.hidden = true;
-    }
-  });
-  const hi_chk = document.getElementById('show_hint');
-  hi_chk.addEventListener('change', (e) => {
-    console.log('hello');
-    if (hi_chk.checked) {
-    console.log('hi off');
-      for (let i = 0; i < 81; ++i) {
-        const elm = document.getElementById(`board-${i}`);
-        if (elm.classList.contains('cur_num')) {
-          elm.classList.remove('cur_num');
-        }
-      }
     }
   });
   // dom
   create_board (game_area);
   create_tool  (game_area);
-  load_score();
   // 問題
-  set_game(get_game_url()); // ?id=Sxxx があればソレ、無いなら乱数
+  start_worker(get_game_url()); // ?xxx があればソレ、無いなら乱数
 })();
+
+//http://localhost:8000/?N6F96314P27
 
 

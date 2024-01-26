@@ -5,25 +5,11 @@
   .rule_book, #rule_book_div {
     font-size: 0;
   }
-  form * {
+  form {
     display: none;
-    visibility: hidden;
-  }
-  input[type=checkbox] {
-    display: none;
-    visibility: hidden;
-  }
-  .hyo * {
-    display: none;
-    visibility: hidden;
-  }
-  .hi_score * {
-    display: none;
-    visibility: hidden;
   }
   .rule_tit {
     display: none;
-    visibility: hidden;
   }
   #timer {
     font-size: 0;
@@ -42,12 +28,6 @@ table.board {
 
 .board th {
   font-size: 15px;
-  border: 0px;
-  padding: 0px;
-}
-
-.board thead {
-  border: 0px;
 }
 
 #title_bar, #game_id {
@@ -64,22 +44,21 @@ table.board {
   color: midnightblue;
   border: 1px dashed black;
   cursor: default;
-  background-color: white;
 }
 
-@keyframes put_anime {
-  0% { background-color: whitesmoke; }
-  100% { background-color: white; }
+@keyframes put_color {
+    0% { color: midnightblue; background-color: #def; }
+   20% { color: midnightblue; background-color: whitesmoke; }
+  100% { color: midnightblue; background-color: white; }
 }
 
-.board td.cur_num {
-  background-color: whitesmoke;
-  /* animation-duration: 15s;
-  animation-name: put_anime; */
+.board td.put_anime {
+  animation: put_color 15s linear 1;
 }
 
-.board td.ng_num {
-  color: crimson;
+.board td.put_err {
+  color: white;
+  background-color: #c44;
 }
 
 .board td.hint {
@@ -127,6 +106,7 @@ div.rule_tit {
   font-family: Arial;
   font-weight: bold;
   margin: auto;
+  padding-top: 1em;
   font-size: 16;
   width: 450px;
   cursor: pointer;
@@ -139,7 +119,6 @@ div.rule_book {
   padding-bottom: 3em;
   font-size: 13px;
   width: 450px;
-  display: none;
 }
 
 table.hyo {
@@ -147,57 +126,9 @@ table.hyo {
   border-collapse: collapse;
   background-color: white;
 }
-
 .hyo td {
   border: 1px solid black;
   text-align: center;
   padding: 1px 8px 1px 8px;
-}
-
-
-div.hi_score {
-  padding-top: 20px;
-  padding-bottom: 20px;
-  margin: auto;
-  text-align: center;
-  width: 450px;
-}
-
-.hi_score button {
-  margin: 15px;
-  font-size: 10px;
-}
-
-.hi_score table {
-  margin: auto;
-  text-align: center;
-  border-collapse: collapse;
-  border: 1px solid black;
-}
-
-.hi_score td, th {
-  padding-left:  8px;
-  padding-right: 8px;
-  border: 1px solid black;
-  font-size: 12px;
-}
-
-.hi_score thead {
-  border: 1px solid black;
-  font-size: 13px;
-  background-color: #efefef;
-  color: black;
-}
-
-.hi_score td.best {
-  font-weight: bold;
-}
-
-.add_pt {
-  text-align: right;
-}
-
-.add_pt::after {
-  content: 'pt';
 }
 
