@@ -12,75 +12,60 @@ const g_game = {
    * pause
    * playing
    * end
-   * restart
    */
-  cursor_bit : ANY,    // ツールの初期状態
-  start_time : 0,      // 開始時刻
-  pause_time : 0,      // 中断したら
-  timer_id   : 0,      // timeout のID
-  game_id    : '',     // S([hex]+) で、hex > 0 な乱数
-  history    : [],     // プレイの記録
-  quest      : null,   // プレイ中の盤面状態: 初期状態のquestは変更不能とする
-  ans        : null,   // 正解の局面
-  hint       : 0,      // 初期状態のquestにあるヒント数
-  lv         : 0,      // solve関数が解くために使った回数
-  url        : '',     // クリップボードにコピーするためのベースURL
-  mokuhyo    : 100000, // 目標点, デフォ１０万
+  cursor_bit    : ANY,    // ツールの初期状態
+  start_time    : 0,      // 開始時刻
+  pause_time    : 0,      // 中断したら
+  timer_id      : 0,      // timeout のID
+  game_id       : '',     // S([hex]+) で、hex > 0 な乱数
+  history       : [],     // プレイの記録
+  quest         : null,   // プレイ中の盤面状態: 初期状態のquestは変更不能とする
+  ans           : null,   // 正解の局面
+  hint          : 0,      // 初期状態のquestにあるヒント数
+  lv            : 0,      // solve関数が解くために使った回数
+  url           : '',     // クリップボードにコピーするためのベースURL
+  mokuhyo       : 100000, // 目標点, デフォ１０万
+  next_game     : null,   // 次のゲーム（内部でつくる）
+  score_list    : [],     // ハイスコアのリスト
+  is_first_game : false,  // これが最初にロードされた状態か
 };
 
-////////////////////////////////////////////
-// 問題をつくる
-
-/* debug
-const dump = (dat) => {
-  console.log('+-------+ cheat +-------+');
-  const bar = '+-------+-------+-------+';
+const dump = (dat, print = true) => {
+  if (print) console.log('+-------+ cheat +-------+');
+  let result = '';
   for (let y = 0; y < 9; ++y) {
     let str = '| ';
     const yp = y * 9;
     for (let x = 0; x < 9; ++x) {
+      let a;
       switch (dat[x + yp]) {
-        case 0b000000000: str += 'e'; break;
-        case 0b000000001: str += '1'; break;
-        case 0b000000010: str += '2'; break;
-        case 0b000000100: str += '3'; break;
-        case 0b000001000: str += '4'; break;
-        case 0b000010000: str += '5'; break;
-        case 0b000100000: str += '6'; break;
-        case 0b001000000: str += '7'; break;
-        case 0b010000000: str += '8'; break;
-        case 0b100000000: str += '9'; break;
-        case 0b111111111: str += '.'; break;
-        default:          str += '_'; break;
+        case 0b000000000: a = 'e'; break;
+        case 0b000000001: a = '1'; break;
+        case 0b000000010: a = '2'; break;
+        case 0b000000100: a = '3'; break;
+        case 0b000001000: a = '4'; break;
+        case 0b000010000: a = '5'; break;
+        case 0b000100000: a = '6'; break;
+        case 0b001000000: a = '7'; break;
+        case 0b010000000: a = '8'; break;
+        case 0b100000000: a = '9'; break;
+        case 0b111111111: a = '0'; break;
+        default:          a = '_'; break;
       }
-      str += x != 8? (x % 3 == 2? ' | ': ' '): ' |';
+      result += a;
+      if (print) {
+        str += a;
+        str += x != 8? (x % 3 == 2? ' | ': ' '): ' |';
+      }
     }
-    console.log(str);
-    if (y % 3 == 2) console.log(bar);
-  }
-};
-// */
-
-const set_game = (nid, button = true) => {
-  const su = new Sudoku(nid);
-  try { // 念のため
-    su.create_quest().then( q => {
-      g_game.quest   = q.quest;
-      g_game.ans     = q.ans;
-      g_game.hint    = q.hint;
-      g_game.lv      = Math.max(1, q.lv - 1);
-      g_game.game_id = 'S' + nid.toString(16).toUpperCase();
-      console.log(`id: ${g_game.game_id}, hint: ${g_game.hint}, lv: ${g_game.lv}`);
-      //dump(q.ans);
-      if (button) {
-        set_start_button();
-      } else {
-        g_game.state = 'restart';
+    if (print) {
+      console.log(str);
+      if (y % 3 == 2) {
+        console.log('+-------+-------+-------+');
       }
-    });
-  } catch (e) {
-    alert(e);
+    }
   }
+  return result;
 };
 
 const make_random_id = () => {
@@ -108,13 +93,6 @@ const draw_hint = () => {
       el.textContent = bit2num(cur); // ANYではない = 常に数字
     } else {
       el.textContent = '';
-    }
-  }
-  for (let i = 1; i < 10; ++i) {
-    const tool = 1 << (i - 1);
-    const el = document.getElementById(`tool-${tool}`);
-    if (el.classList.contains('tool_fill')) {
-      el.classList.remove('tool_fill');
     }
   }
 };
@@ -147,7 +125,7 @@ const on_id_click = (e) => {
     g_game.start_time = Date.now();
     g_game.state = 'playing';
     show_time();
-  } else if (s == 'playing' || s == 'pause' || s == 'end' || s == 'restart') {
+  } else if (s == 'playing' || s == 'pause' || s == 'end') {
     console.log('copy:', g_game.url + '?id=' + g_game.game_id);
     navigator.clipboard.writeText(g_game.url + '?id=' + g_game.game_id);
   }
@@ -163,7 +141,7 @@ const check_gameover = () => {
   }
   ////////////////////////////////////
   // クリアした
-  g_game.state = 'end';
+  g_game.state = 'end'; // END
   clearTimeout(g_game.timer_id); // Stop!
   const end_time = Date.now() - g_game.start_time + g_game.pause_time; // 時間
   // 最終スコア計算
@@ -196,7 +174,6 @@ const check_gameover = () => {
   document.getElementById('title_bar').textContent = ten + 'pt';
   // ハイスコア記録
   add_score(score, time, final_score);
-  g_game.state = 'restart';
   for (let pos = 0; pos < 81; ++pos) {
     const elm = document.getElementById(`board-${pos}`);
     if (elm.classList.contains('cur_num')) {
@@ -232,6 +209,7 @@ const hi_num = () => {
       }
     }
   }
+  if (bit == ANY) return;
   for (let pos of ig) {
     const el = document.getElementById(`board-${pos}`);
     if (!el.classList.contains('cur_num')) {
@@ -300,50 +278,84 @@ const on_board_click = (e) => {
 // 再開＝＞スタート・タイムを Date.now() に修正
 // 経過時間＝今 - スタート + 差分
 
+const create_next = (nid) => {
+  const su = new Sudoku(nid);
+  su.create_quest().then( q => {
+    q.id = 'S' + nid.toString(16).toUpperCase();
+    q.lv = Math.max(1, q.lv - 1);
+    g_game.next_game = q;
+    //console.log('dekita:', g_game.next_game);
+  });
+};
+
+const clear_all = () => {
+  for (let i = 0; i < 81; ++i) {
+    const elm = document.getElementById(`board-${i}`);
+    elm.classList.remove('hint');
+    elm.classList.remove('cur_num');
+    elm.textContent = '';
+  }
+  for (let i = 10; i > 0; --i) {
+    const toi = i == 10? ANY: 1 << (i - 1);
+    const elm = document.getElementById('tool-' + toi);
+    if (i == 10) {
+      elm.classList.add('tool_sel');
+    } else {
+      elm.classList.remove('tool_sel');
+      elm.classList.remove('tool_fill');
+    }
+  }
+  g_game.cursor_bit = ANY;
+};
+
 const on_titlebar_click = (e) => {
-  if (g_game.state == 'playing') { // pause
-    clearTimeout(g_game.timer_id);
-    g_game.pause_time += Date.now() - g_game.start_time; // 差分を追記
-    e.target.textContent = 'PAUSE';
-    for (let pos = 0; pos < 81; ++pos) {
-      const el = document.getElementById(`board-${pos}`);
-      el.textContent = '';
+  if (g_game.state == 'playing') {
+    if (window.confirm('【チート】\n外部サイトを利用して解法を表示します')) {
+      window.open(
+      `http://www.sudokugame.org/puzzle.php?tm=${dump(g_game.quest, false)}`,
+        '_blank');
     }
-    g_game.state = 'pause';
-  } else if (g_game.state == 'pause') { // 再開
-    g_game.start_time = Date.now(); // start_timeをリセットしておく
-    e.target.textContent = `${81 - g_game.history.length} PLACE`;
-    for (let pos = 0; pos < 81; ++pos) {
-      const el = document.getElementById(`board-${pos}`);
-      const n = bit2num(g_game.quest[pos]);
-      el.textContent = n == 10? '': n;
-    }
-    g_game.state = 'playing';
-    show_time();
-  } else if (g_game.state == 'restart') {
-    if (window.confirm('新しい問題を始めますか？')) {
-      document.location.href = g_game.url;
-      /*
-      set_game(make_random_id());
-      for (let pos = 0; pos < 81; ++pos) {
-        const elm = document.getElementById(`board-${pos}`);
-        if (elm.classList.contains('hint')) {
-          elm.classList.remove('hint');
-        }
-        elm.textContent = '';
-      }
-      e.target.textContent = '81 PLACE';
-      */
+  } else if (g_game.state == 'end' && g_game.next_game) {
+    if (window.confirm('新しい問題を始めます')) {
+      const q = g_game.next_game;
+      g_game.quest   = q.quest;
+      g_game.ans     = q.ans;
+      g_game.hint    = q.hint;
+      g_game.lv      = q.lv;
+      g_game.game_id = q.id;
+      //
+      g_game.next_game = null;
+      create_next(make_random_id());
+      //
+      clear_all();
+      set_start_button();
     }
   }
 };
 
-// 丸投げ
-const on_timebar_click = () => {
-  if (g_game.state == 'playing' || g_game.state == 'pause') {
-    on_titlebar_click( {
-      target: document.getElementById('title_bar')
-    } );
+// ポーズと再開
+const on_timebar_click = (_) => {
+  if (g_game.state == 'playing') { // pause
+    clearTimeout(g_game.timer_id);
+    g_game.pause_time += Date.now() - g_game.start_time; // 差分を追記
+    const el = document.getElementById('title_bar');
+    el.textContent = 'PAUSE';
+    for (let pos = 0; pos < 81; ++pos) {
+      const elm = document.getElementById(`board-${pos}`);
+      elm.textContent = '';
+    }
+    g_game.state = 'pause';
+  } else if (g_game.state == 'pause') { // 再開
+    g_game.start_time = Date.now(); // start_timeをリセットしておく
+    const el = document.getElementById('title_bar');
+    el.textContent = `${81 - g_game.history.length} PLACE`;
+    for (let pos = 0; pos < 81; ++pos) {
+      const elm = document.getElementById(`board-${pos}`);
+      const n = bit2num(g_game.quest[pos]);
+      elm.textContent = n == 10? '': n;
+    }
+    g_game.state = 'playing';
+    show_time();
   }
 };
 
@@ -383,6 +395,8 @@ const set_tool = (bit) => {
 const on_keyboard = (e) => {
   if (/[1-9]/.test(e.key)) {
     set_tool(1 << (parseInt(e.key) - 1));
+  } else if (/[qQ]/.test(e.key)) {
+    set_tool(1 << 8); // 9
   } else if (/[ 0]/.test(e.key)) {
     set_tool(ANY);
   } else if (e.key == 'a') {
@@ -484,108 +498,148 @@ const create_tool = (tar) => {
   tar.appendChild(table);
 };
 
-
-
-const get_td = (n, key, str) => {
-  const td = document.createElement(n >= 0? 'td': 'th');
-  const m = n >= 0? localStorage.getItem(`s${n}_${key}`): key;
-  if (key === 'score') {
-    const num = parseInt(m);
-    if (num > g_game.mokuhyo) {
-           if (num >= 140000) g_game.mokuhyo = 150000;
-      else if (num >= 130000) g_game.mokuhyo = 140000;
-      else if (num >= 120000) g_game.mokuhyo = 130000;
-      else if (num >= 110000) g_game.mokuhyo = 120000;
-      else if (num >= 100000) g_game.mokuhyo = 110000;
-      else                    g_game.mokuhyo = 100000;
-    }
-    td.textContent = num.toLocaleString();
-  } else {
-    td.textContent = m;
-  }
-  if (str) td.classList.add(str);
-  return td;
-};
-
-const add_score = (base, time, score) => {
-  let len = localStorage.getItem('score_len');
-  if (!len) len = 0;
-  else len = parseInt(len);
-  localStorage.setItem('score_len', len + 1);
-  const ds = get_date_str();
-  localStorage.setItem(`s${len}_date`, ds);
-  localStorage.setItem(`s${len}_id`, g_game.game_id);
-  localStorage.setItem(`s${len}_lv`, g_game.lv);
-  localStorage.setItem(`s${len}_hint`, g_game.hint);
-  localStorage.setItem(`s${len}_base`, base.toLocaleString());
-  localStorage.setItem(`s${len}_time`, time);
-  localStorage.setItem(`s${len}_score`, score);
-  //
-  const tbody = document.getElementById('score_body');
-  if (tbody) {
-    const tr = document.createElement('tr');
-    tr.appendChild(get_td(len, 'date'));
-    tr.appendChild(get_td(len, 'id'));
-    tr.appendChild(get_td(len, 'hint'));
-    tr.appendChild(get_td(len, 'base'));
-    tr.appendChild(get_td(len, 'time'));
-    tr.appendChild(get_td(len, 'score', 'add_pt'));
-    tbody.appendChild(tr);
-  } else {
-    load_score();
-  }
-};
-
+/////////////////////////////////////////////////////
+// 日付文字列
 const get_date_str = () => {
   const d = new Date();
   return `${d.getFullYear()-2000}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const load_score = () => {
-  const len = localStorage.getItem('score_len');
-  if (!len) return;
+const make_td = (is_td, dat, cls) => {
+  const ret = document.createElement(is_td ? 'td': 'th');
+  ret.textContent = dat;
+  if (cls) ret.classList.add(cls);
+  return ret;
+};
+
+const set_mokuhyo = (n) => {
+  g_game.mokuhyo = n >= 140000? 150000:
+                   n >= 130000? 140000:
+                   n >= 120000? 130000:
+                   n >= 110000? 120000:
+                   n >= 100000? 110000:
+                   100000;
+  document.getElementById('mokuhyo').textContent = `目標: ${g_game.mokuhyo.toLocaleString()}pt`;
+};
+
+// スコアを追加
+const add_score = (base, time, score) => {
+  const obj = {
+    date    : get_date_str(),
+    id      : g_game.game_id,
+    lv      : g_game.lv,
+    hint    : g_game.hint,
+    base    : base.toLocaleString(),
+    time    : time,
+    score   : score,
+  };
+  if (score >= g_game.mokuhyo) set_mokuhyo(score);
+  g_game.score_list.push(obj);
+  localStorage.setItem('score_list',
+    JSON.stringify(g_game.score_list, undefined, 1) );
+  //
+  const tbody = document.getElementById('score_body');
+  if (tbody) {
+    const tr = document.createElement('tr');
+    tr.appendChild(make_td(true, obj.date));
+    tr.appendChild(make_td(true, obj.id));
+    tr.appendChild(make_td(true, obj.hint));
+    tr.appendChild(make_td(true, obj.base));
+    tr.appendChild(make_td(true, obj.time));
+    tr.appendChild(make_td(true, obj.score.toLocaleString(), 'add_pt'));
+    tbody.appendChild(tr);
+  } else {
+    create_score_table();
+  }
+};
+
+// スコアテーブルを作る
+const create_score_table = () => {
+  const data = localStorage.getItem('score_list');
+  if (!data) {
+    g_game.score_list = [];
+    g_game.is_first_game = true;
+    set_mokuhyo(100000 - 1);
+    return;
+  }
+  const lst = JSON.parse(data);
+  lst.sort((a, b) => b.score - a.score);
+  set_mokuhyo(lst[0].score);
+  g_game.score_list = lst;
+  ///////////////////////////////////////////////////
+  const hs = document.getElementById('hi_score');
+  //
   const table = document.createElement('table');
   const th = document.createElement('thead');
   const htr = document.createElement('tr');
-  htr.appendChild(get_td(-1, 'Date'));
-  htr.appendChild(get_td(-1, 'ID'));
-  htr.appendChild(get_td(-1, 'Hint'));
-  htr.appendChild(get_td(-1, 'Base'));
-  htr.appendChild(get_td(-1, 'Time'));
-  htr.appendChild(get_td(-1, 'SCORE'));
+  htr.appendChild(make_td(false, 'Date'));
+  htr.appendChild(make_td(false, 'ID'));
+  htr.appendChild(make_td(false, 'Hint'));
+  htr.appendChild(make_td(false, 'Base'));
+  htr.appendChild(make_td(false, 'Time'));
+  htr.appendChild(make_td(false, 'SCORE'));
   th.appendChild(htr);
   table.appendChild(th);
+  //
   const tb = document.createElement('tbody');
   tb.setAttribute('id', 'score_body');
-  for (let i = 0; i < parseInt(len); ++i) {
+  const len = Math.min(10, lst.length);
+  for (let i = 0; i < lst.length; ++i) {
     const tr = document.createElement('tr');
-    tr.appendChild(get_td(i, 'date'));
-    tr.appendChild(get_td(i, 'id'));
-    tr.appendChild(get_td(i, 'hint'));
-    tr.appendChild(get_td(i, 'base'));
-    tr.appendChild(get_td(i, 'time'));
-    tr.appendChild(get_td(i, 'score', 'add_pt'));
+    tr.appendChild(make_td(true, lst[i].date));
+    tr.appendChild(make_td(true, lst[i].id));
+    tr.appendChild(make_td(true, lst[i].hint));
+    tr.appendChild(make_td(true, lst[i].base));
+    tr.appendChild(make_td(true, lst[i].time));
+    tr.appendChild(make_td(true, lst[i].score.toLocaleString(), 'add_pt'));
+    tb.appendChild(tr);
+  }
+  if (!g_game.is_first_game) {
+    // 見出し２つ目
+    const tr = document.createElement('tr');
+    tr.appendChild(make_td(true, 'Date',  'tb_th'));
+    tr.appendChild(make_td(true, 'ID',    'tb_th'));
+    tr.appendChild(make_td(true, 'Hint',  'tb_th'));
+    tr.appendChild(make_td(true, 'Base',  'tb_th'));
+    tr.appendChild(make_td(true, 'Time',  'tb_th'));
+    tr.appendChild(make_td(true, 'SCORE', 'tb_th'));
     tb.appendChild(tr);
   }
   table.appendChild(tb);
-
-
-  const hs = document.getElementById('hi_score');
   // button
-  const btn = document.createElement('button');
-  btn.textContent = 'REMOVE ALL';
-  btn.addEventListener('click', (e) => {
-    if (window.confirm('これまでの履歴をすべて消去します')) {
+  const div = document.createElement('div');
+  div.setAttribute('class', 'hs_button');
+  //
+  const relo = document.createElement('button');
+  relo.textContent = 'RELOAD';
+  relo.addEventListener('click', (e) => {
+    const flag = g_game.state == 'pause' || g_game.state == 'playing';
+    if (flag) {
+      if (window.confirm('この問題を最初からプレイします')) {
+        document.location.href = `${g_game.url}?id=${g_game.game_id}`;
+      }
+    } else {
+      document.location.href = g_game.url;
+    }
+  });
+  div.appendChild(relo);
+  //
+  const del = document.createElement('button');
+  del.textContent = 'REMOVE ALL';
+  del.addEventListener('click', (e) => {
+    if (window.confirm('これまでのスコアをすべて消去します')) {
       localStorage.clear();
       while (hs.firstChild) {
         hs.removeChild(hs.firstChild);
       }
     }
   });
-  //
+  div.appendChild(del);
+  // target
   hs.appendChild(table);
-  hs.appendChild(btn);
+  hs.appendChild(div);
 };
+
 
 ////////////////////////////////////////////
 // 最初に一回だけ
@@ -619,13 +673,18 @@ const get_game_url = () => {
   return make_random_id();
 };
 
+
 //////////////////
 // satart
 (() => {
   g_game.state = 'init';
+  // dom
+  const game_area = document.getElementById('game_area');
+  create_board (game_area);
+  create_tool  (game_area);
+  create_score_table();
   // event
   document.addEventListener('keydown', on_keyboard);
-  const game_area = document.getElementById('game_area');
   const rule = document.getElementById('rule_tit_but');
   rule.textContent = '➤ 遊び方 (click)';
   const book = document.getElementById('rule_book_div');
@@ -643,9 +702,7 @@ const get_game_url = () => {
   });
   const hi_chk = document.getElementById('show_hint');
   hi_chk.addEventListener('change', (e) => {
-    console.log('hello');
     if (hi_chk.checked) {
-    console.log('hi off');
       for (let i = 0; i < 81; ++i) {
         const elm = document.getElementById(`board-${i}`);
         if (elm.classList.contains('cur_num')) {
@@ -654,12 +711,19 @@ const get_game_url = () => {
       }
     }
   });
-  // dom
-  create_board (game_area);
-  create_tool  (game_area);
-  load_score();
   // 問題
-  set_game(get_game_url()); // ?id=Sxxx があればソレ、無いなら乱数
+  const id = get_game_url(); // ?id=Sxxx があればソレ、無いなら乱数
+  const su = new Sudoku(id);
+  su.create_quest().then( q => {
+    g_game.quest   = q.quest;
+    g_game.ans     = q.ans;
+    g_game.hint    = q.hint;
+    g_game.lv      = Math.max(1, q.lv - 1);
+    g_game.game_id = 'S' + id.toString(16).toUpperCase();
+    dump(q.ans);
+    set_start_button();
+    create_next(make_random_id());
+  });
 })();
 
 

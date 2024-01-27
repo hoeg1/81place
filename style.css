@@ -50,7 +50,11 @@ table.board {
   border: 0px;
 }
 
-#title_bar, #game_id {
+#game_id {
+  cursor: context-menu;
+}
+
+#title_bar, #timer {
   cursor: pointer;
 }
 
@@ -189,7 +193,8 @@ div.hi_score {
   color: black;
 }
 
-.hi_score td.best {
+.tb_th {
+  background-color: #efefef;
   font-weight: bold;
 }
 
@@ -200,4 +205,11 @@ div.hi_score {
 .add_pt::after {
   content: 'pt';
 }
+
+#mokuhyo {
+  margin: auto;
+  width: 480px;
+  text-align: center;
+}
+
 
