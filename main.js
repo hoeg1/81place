@@ -584,7 +584,7 @@ const create_score_table = () => {
   const tb = document.createElement('tbody');
   tb.setAttribute('id', 'score_body');
   const len = Math.min(10, lst.length);
-  for (let i = 0; i < lst.length; ++i) {
+  for (let i = 0; i < len; ++i) {
     const tr = document.createElement('tr');
     tr.appendChild(make_td(true, lst[i].date));
     tr.appendChild(make_td(true, lst[i].id));
@@ -720,7 +720,7 @@ const get_game_url = () => {
     g_game.hint    = q.hint;
     g_game.lv      = Math.max(1, q.lv - 1);
     g_game.game_id = 'S' + id.toString(16).toUpperCase();
-    dump(q.ans);
+    //dump(q.ans);
     set_start_button();
     create_next(make_random_id());
   });

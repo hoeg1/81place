@@ -51,7 +51,7 @@ table.board {
 }
 
 #game_id {
-  cursor: context-menu;
+  cursor: pointer;/*context-menu;*/
 }
 
 #title_bar, #timer {
@@ -71,15 +71,8 @@ table.board {
   background-color: white;
 }
 
-@keyframes put_anime {
-  0% { background-color: whitesmoke; }
-  100% { background-color: white; }
-}
-
 .board td.cur_num {
-  background-color: whitesmoke;
-  /* animation-duration: 15s;
-  animation-name: put_anime; */
+  background-color: linen;
 }
 
 .board td.ng_num {
