@@ -28,6 +28,9 @@
   #timer {
     font-size: 0;
   }
+  #mokuhyo {
+    display: none;
+  }
 }
 
 table.board {
@@ -65,7 +68,7 @@ table.board {
   text-align: center;
   font-family: Verdana;
   font-size: 29px;
-  color: midnightblue;
+  color: black; /* midnightblue; */
   border: 1px dashed black;
   cursor: default;
   background-color: white;
@@ -172,22 +175,33 @@ div.hi_score {
   border: 1px solid black;
 }
 
-.hi_score td, th {
+.hi_score td {
   padding-left:  8px;
   padding-right: 8px;
+  padding-top:    4px;
+  padding-bottom: 4px;
   border: 1px solid black;
   font-size: 12px;
 }
 
-.hi_score thead {
+.hi_score tr:nth-child(even) td {
+  background-color: #eee;
+}
+
+.hi_score th {
+  padding-left:  8px;
+  padding-right: 8px;
+  padding-top:    4px;
+  padding-bottom: 4px;
   border: 1px solid black;
-  font-size: 13px;
-  background-color: #efefef;
-  color: black;
+  font-size: 12px;
+  background-color: #444;
+  color: white;
 }
 
 .tb_th {
-  background-color: #efefef;
+  background-color: #444;
+  color: white;
   font-weight: bold;
 }
 
@@ -203,6 +217,8 @@ div.hi_score {
   margin: auto;
   width: 480px;
   text-align: center;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 

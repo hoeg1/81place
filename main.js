@@ -73,6 +73,16 @@ const make_random_id = () => {
 };
 
 
+const css_off = (el, class_name, is_add = false) => {
+  // あるなら除外
+  if (el.classList.contains(class_name)) {
+    el.classList.remove(class_name);
+  } else if (is_add) {
+    // ないなら, is_add = true のときだけ追加
+    el.classList.add(class_name);
+  }
+};
+
 ////////////////////////////////////////////
 // スタートする処理、タイマ等
 
@@ -159,13 +169,19 @@ const check_gameover = () => {
   const t50 = Math.round(end_time / 50);
   const bonus = Math.max(0, score - t50);
   const final_score = score + bonus;
-  const wow = final_score >= g_game.mokuhyo? `≧ ${g_game.mokuhyo.toLocaleString()}pt!!!`:
+  let rank = 1;
+  for (let i = 0; i < g_game.score_list.length; ++i) {
+    if (final_score < g_game.score_list[i].score) rank += 1;
+  }
+  const wow =
+    final_score >= g_game.mokuhyo? `≧ ${g_game.mokuhyo.toLocaleString()}pt!!!`:
     `- 目標 ${g_game.mokuhyo.toLocaleString()}pt まで残り ${(g_game.mokuhyo - final_score).toLocaleString()}pt`;
-  // log
+  /* log
   console.log(`CLEAR: ${final_score.toLocaleString()}pt ${wow}`);
   console.log(`base: ${score.toLocaleString()}pt`);
   console.log(`time: ${t50.toLocaleString()}(${end_time.toLocaleString()}ms)`);
   console.log(`bonus = ${score}pt - ${t50}time = ${bonus}`);
+  // */
   // 時間を表示
   const time = ms2hms(end_time);
   document.getElementById('timer').textContent = time;
@@ -176,13 +192,11 @@ const check_gameover = () => {
   add_score(score, time, final_score);
   for (let pos = 0; pos < 81; ++pos) {
     const elm = document.getElementById(`board-${pos}`);
-    if (elm.classList.contains('cur_num')) {
-      elm.classList.remove('cur_num');
-    }
+    css_off(elm, 'cur_num');
   }
   // 通知, 再描画させるため一拍置いてalert
   setTimeout(() => alert('CONGRATULATIONS!\n\n' +
-    `SCORE: ${ten}pt\n` +
+    `SCORE: ${ten}pt (${rank}位)\n` +
     `${wow}\n\n` +
     `TIME : ${time} (${end_time.toLocaleString()}ms)\n` +
     `BASE : ${score.toLocaleString()}pt\n` +
@@ -194,24 +208,32 @@ const check_gameover = () => {
 
 // 選択中の数字の効きをハイライト
 const hi_num = () => {
-  if (g_game.state != 'playing' || document.getElementById('show_hint').checked) return;
+  if (g_game.state != 'playing') return;
   const bit = g_game.cursor_bit;
-  const ig = new Set();
+  const dont = new Set(); // 'クリックするな' を設定するリスト
   for (let i = 0; i < 81; ++i) {
     const elm = document.getElementById(`board-${i}`);
-    if (elm.classList.contains('cur_num')) {
-      elm.classList.remove('cur_num');
-    }
-    if (g_game.quest[i] != ANY) {
-      ig.add(i);
-      if (bit != ANY && bit == g_game.quest[i]) {
-        cross_box(i, (p, _) => ig.add(p));
+    if (bit != ANY) { // １〜９の数字のとき
+      if (g_game.quest[i] != ANY) { // 今の位置が空白でない
+        // それは hintマス or プレイヤが記入したなにか: クリックするなと警告
+        dont.add(i);
+        if (g_game.quest[i] == bit) { // それが選択中の数字なら効きを算出
+          cross_box(i, (p, _) => dont.add(p)); // 効きの範囲もクリックするな
+        }
+      }
+    } else { // ツールが空白のとき
+      // !hint かつ !ANY なら消しゴムできる
+      if (!elm.classList.contains('hint') && g_game.quest[i] != ANY) {
+        dont.add(i);
       }
     }
+    // 前のチェックを解除
+    css_off(elm, 'cur_num');
   }
-  if (bit == ANY) return;
-  for (let pos of ig) {
+  // クリックしないほうが良いマスについて
+  for (let pos of dont) {
     const el = document.getElementById(`board-${pos}`);
+    // 設定されていないなら追加
     if (!el.classList.contains('cur_num')) {
       el.classList.add('cur_num');
     }
@@ -234,8 +256,8 @@ const ng_search = () => {
     const elm = document.getElementById(`board-${i}`);
     if (ng.has(i)) {
       elm.classList.add('ng_num');
-    } else if (elm.classList.contains('ng_num')) {
-      elm.classList.remove('ng_num');
+    } else {
+      css_off(elm, 'ng_num');
     }
   }
 };
@@ -316,7 +338,7 @@ const on_titlebar_click = (e) => {
         '_blank');
     }
   } else if (g_game.state == 'end' && g_game.next_game) {
-    if (window.confirm('新しい問題を始めます')) {
+    if (window.confirm('NEXT GAME\n- 新しい問題を始めます')) {
       const q = g_game.next_game;
       g_game.quest   = q.quest;
       g_game.ans     = q.ans;
@@ -326,9 +348,12 @@ const on_titlebar_click = (e) => {
       //
       g_game.next_game = null;
       create_next(make_random_id());
-      //
+      // 消去
       clear_all();
+      // スタートできるようにして
       set_start_button();
+      // 強制スタート
+      on_id_click({ target: document.getElementById('game_id') });
     }
   }
 };
@@ -373,12 +398,13 @@ const check_fill_num = () => {
     const el = document.getElementById(`tool-${tool}`);
     if (lst[i] == 9) {
       el.classList.add('tool_fill');
-    } else if (el.classList.contains('tool_fill')) {
-      el.classList.remove('tool_fill');
+    } else {
+      css_off(el, 'tool_fill');
     }
   }
 };
 
+// ツールを選択
 const set_tool = (bit) => {
   if (g_game.cursor_bit == bit) return;
   g_game.cursor_bit = bit;
@@ -393,6 +419,7 @@ const set_tool = (bit) => {
 };
 
 const on_keyboard = (e) => {
+  if (g_game.state != 'playing') return;
   if (/[1-9]/.test(e.key)) {
     set_tool(1 << (parseInt(e.key) - 1));
   } else if (/[qQ]/.test(e.key)) {
@@ -409,6 +436,7 @@ const on_keyboard = (e) => {
 };
 
 const on_tool_click = (e) => {
+  if (g_game.state != 'playing') return;
   const reg = /tool-([0-9]+)/;
   const ma = e.target.id.match(reg);
   set_tool( parseInt(ma[1]) );
@@ -535,6 +563,7 @@ const add_score = (base, time, score) => {
   };
   if (score >= g_game.mokuhyo) set_mokuhyo(score);
   g_game.score_list.push(obj);
+  g_game.score_list.sort((a, b) => b.score - a.score);
   localStorage.setItem('score_list',
     JSON.stringify(g_game.score_list, undefined, 1) );
   //
@@ -597,12 +626,12 @@ const create_score_table = () => {
   if (!g_game.is_first_game) {
     // 見出し２つ目
     const tr = document.createElement('tr');
-    tr.appendChild(make_td(true, 'Date',  'tb_th'));
-    tr.appendChild(make_td(true, 'ID',    'tb_th'));
-    tr.appendChild(make_td(true, 'Hint',  'tb_th'));
-    tr.appendChild(make_td(true, 'Base',  'tb_th'));
-    tr.appendChild(make_td(true, 'Time',  'tb_th'));
-    tr.appendChild(make_td(true, 'SCORE', 'tb_th'));
+    tr.appendChild(make_td(false, 'Date'  ));
+    tr.appendChild(make_td(false, 'ID'    ));
+    tr.appendChild(make_td(false, 'Hint'  ));
+    tr.appendChild(make_td(false, 'Base'  ));
+    tr.appendChild(make_td(false, 'Time'  ));
+    tr.appendChild(make_td(false, 'SCORE' ));
     tb.appendChild(tr);
   }
   table.appendChild(tb);
@@ -698,17 +727,6 @@ const get_game_url = () => {
       rule.textContent = '➤ 遊び方';
       book.style.display = 'none';
       book.hidden = true;
-    }
-  });
-  const hi_chk = document.getElementById('show_hint');
-  hi_chk.addEventListener('change', (e) => {
-    if (hi_chk.checked) {
-      for (let i = 0; i < 81; ++i) {
-        const elm = document.getElementById(`board-${i}`);
-        if (elm.classList.contains('cur_num')) {
-          elm.classList.remove('cur_num');
-        }
-      }
     }
   });
   // 問題
