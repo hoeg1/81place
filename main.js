@@ -548,7 +548,7 @@ const set_mokuhyo = (n) => {
                    n >= 100000? 110000:
                    100000;
   // 目標を通知
-  document.getElementById('mokuhyo').textContent = `- ${g_game.mokuhyo.toLocaleString()}pt を越えてください -`;
+  document.getElementById('mokuhyo').textContent = `目標: ${g_game.mokuhyo.toLocaleString()}pt`;
 };
 
 // スコアを追加
