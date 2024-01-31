@@ -221,4 +221,36 @@ div.hi_score {
   font-weight: bold;
 }
 
+.cheat_dialog {
+  margin: auto;
+  width: 400;
+}
+
+.cheat_dialog table {
+  margin: auto;
+  text-align: center;
+  border-collapse: collapse;
+  border: 1px solid black;
+}
+
+.cheat_dialog td {
+  margin: auto;
+  width:  40px;
+  height: 40px;
+  font-family: Verdana;
+  font-size: 30px;
+  text-align: center;
+  border-collapse: collapse;
+  border: 1px solid black;
+}
+
+.this_is_cheat {
+  color: red;
+  font-weight: bold;
+}
+
+.cheat_gray {
+  background-color: #eee;
+}
+
 

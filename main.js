@@ -1,4 +1,6 @@
 import { Sudoku, ANY, bit2num, cross_box } from './sudoku.js';
+import { get_hint, create_dialog } from './hint.js';
+
 // python3 -m http.server 8000
 // localhost:8000
 
@@ -28,6 +30,7 @@ const g_game = {
   next_game     : null,   // 次のゲーム（内部でつくる）
   score_list    : [],     // ハイスコアのリスト
   is_first_game : false,  // これが最初にロードされた状態か
+  is_played     : false,  // プレイしたことがあるIDか
 };
 
 const dump = (dat, print = true) => {
@@ -68,8 +71,45 @@ const dump = (dat, print = true) => {
   return result;
 };
 
-const make_random_id = () => {
+// 数を S[hex]+ に変換
+const make_id_str = (num_id) => {
+  return 'S' + num_id.toString(16).toUpperCase();
+};
+
+// プレイ済みか判定
+const is_played = (num_id) => {
+  const data = localStorage.getItem('score_list');
+  if (!data) return false;
+  const id = make_id_str(num_id);
+  const lst = JSON.parse(data);
+  for (let l of lst) {
+    if (l.id == id) return true;
+  }
+  return false;
+};
+
+const rand_num = () => {
   return Math.trunc(Math.random() * 200000000) + 1;
+};
+
+const make_random_id = () => {
+  const data = localStorage.getItem('score_list');
+  if (!data) return rand_num();
+  const lst = JSON.parse(data);
+  for (let i = 0; i < 10000000; ++i) {
+    const rnd = rand_num();
+    const id = make_id_str(rnd);
+    let flag = true;
+    for (let l of lst) {
+      if (l.id == id) {
+        flag = false;
+        break;
+      }
+    }
+    if (flag) return rnd;
+  }
+  alert('問題作成に失敗しました。リロードします');
+  window.location.href = '/';
 };
 
 
@@ -80,6 +120,19 @@ const css_off = (el, class_name, is_add = false) => {
   } else if (is_add) {
     // ないなら, is_add = true のときだけ追加
     el.classList.add(class_name);
+  }
+};
+
+const add_history = (pos, bit) => {
+  if (g_game.history.length < 81) {
+    g_game.history.push({
+      pos: pos,
+      pt : 81 - g_game.history.length,
+      num: bit,
+    });
+    // len = 81 のとき '0 PLACE' になる
+    document.getElementById('title_bar').textContent =
+      `${81 - g_game.history.length} PLACE`;
   }
 };
 
@@ -159,6 +212,7 @@ const check_gameover = () => {
   let score = 0;
   for (let i = g_game.history.length - 1; i >= 0; --i) { // 最後から見ていく
     const cur = g_game.history[i];
+    if (cur.num == ANY) continue; // 消しゴムは飛ばす
     if (uniq_pos.has(cur.pos)) continue; // クリック位置の重複を除外
     uniq_pos.add(cur.pos);
     // cur.pt = 81 ~ 1
@@ -190,12 +244,15 @@ const check_gameover = () => {
   document.getElementById('title_bar').textContent = ten + 'pt';
   // ハイスコア記録
   add_score(score, time, final_score);
+  // 表示を調整
   for (let pos = 0; pos < 81; ++pos) {
     const elm = document.getElementById(`board-${pos}`);
     css_off(elm, 'cur_num');
   }
   // 通知, 再描画させるため一拍置いてalert
-  setTimeout(() => alert('CONGRATULATIONS!\n\n' +
+  setTimeout(() => alert(
+    'CONGRATULATIONS!\n' +
+    (g_game.is_played? '※プレイ済みのためスコアは記録されません\n\n':'\n') +
     `SCORE: ${ten}pt (${rank}位)\n` +
     `${wow}\n\n` +
     `TIME : ${time} (${end_time.toLocaleString()}ms)\n` +
@@ -222,8 +279,8 @@ const hi_num = () => {
         }
       }
     } else { // ツールが空白のとき
-      // !hint かつ !ANY なら消しゴムできる
-      if (!elm.classList.contains('hint') && g_game.quest[i] != ANY) {
+      // hint または ANY は消しゴムしない
+      if (elm.classList.contains('hint') || g_game.quest[i] == ANY) {
         dont.add(i);
       }
     }
@@ -266,24 +323,18 @@ const ng_search = () => {
 // 問題をクリックしたとき
 const on_board_click = (e) => {
   if (g_game.state == 'playing' && !e.target.classList.contains('hint')) {
+    // 座標
     const ma = e.target.id.match(/board-([0-9]+)/);
     const click_pos = parseInt(ma[1]);
+    // ダブルクリックを回避
     if (g_game.quest[click_pos] == g_game.cursor_bit) return;
     // 表示
     const n = bit2num(g_game.cursor_bit); // ANYなら10
     e.target.textContent = n == 10? '': n.toString();
     // 書き込む
     g_game.quest[click_pos] = g_game.cursor_bit;
-    if (g_game.history.length < 81) {
-      g_game.history.push({
-        pos: click_pos,
-        pt : 81 - g_game.history.length,
-        num: g_game.cursor_bit,
-      });
-      // len = 81 のとき '0 PLACE' になる
-      document.getElementById('title_bar').textContent =
-        `${81 - g_game.history.length} PLACE`;
-    }
+    add_history(click_pos, g_game.cursor_bit);
+    // 更新
     ng_search();
     hi_num();
     check_fill_num();
@@ -303,7 +354,7 @@ const on_board_click = (e) => {
 const create_next = (nid) => {
   const su = new Sudoku(nid);
   su.create_quest().then( q => {
-    q.id = 'S' + nid.toString(16).toUpperCase();
+    q.id = make_id_str(nid);
     q.lv = Math.max(1, q.lv - 1);
     g_game.next_game = q;
     //console.log('dekita:', g_game.next_game);
@@ -332,10 +383,9 @@ const clear_all = () => {
 
 const on_titlebar_click = (e) => {
   if (g_game.state == 'playing') {
-    if (window.confirm('【チート】\n外部サイトを利用して解法を表示します')) {
-      window.open(
-      `http://www.sudokugame.org/puzzle.php?tm=${dump(g_game.quest, false)}`,
-        '_blank');
+    if (window.confirm(`${g_game.history.length < 81? '５手消費して':''}答えをひとつ表示します`)) {
+      for (let i = 0; i < 5; ++i) add_history(-1, ANY);
+      setTimeout(() => get_hint([...g_game.quest]), 100);
     }
   } else if (g_game.state == 'end' && g_game.next_game) {
     if (window.confirm('NEXT GAME\n- 新しい問題を始めます')) {
@@ -553,6 +603,12 @@ const set_mokuhyo = (n) => {
 
 // スコアを追加
 const add_score = (base, time, score) => {
+  // プレイ済みはリターン
+  if (g_game.is_played) {
+    console.log('プレイ済み:', g_game.game_id);
+    return;
+  }
+  // プレイしたことがあるなら
   const obj = {
     date    : get_date_str(),
     id      : g_game.game_id,
@@ -690,12 +746,22 @@ const get_game_url = () => {
       document.location.href = url;
       return;
     }
-    // 新IDなら
+    // 新verのIDなら
     const reg = /\?id=S([0-9a-fA-F]+)/;
     if (reg.test(id)) {
       const ma = id.match(reg);
       const  n = parseInt(ma[1], 16);
-      if (n) return n; // 0 や NaNじゃない
+      if (is_played(n)) {
+        if (window.confirm('プレイ済みの盤面です。\nクリアしても記録されませんが、続行しますか？\nキャンセルならID無しのURLにリロードします。')) {
+          g_game.is_played = true;
+          return n;
+        }
+        // キャンセルならいっそリロード
+        document.location.href = '/';
+        return;
+      } else if (n) {
+        return n; // 0 や NaNじゃない
+      } // else => error
     }
     alert(`エラー\nID: '${id}' の読み込みに失敗しました。\n自動生成します。`);
   }
@@ -712,7 +778,8 @@ const get_game_url = () => {
   const game_area = document.getElementById('game_area');
   create_board (game_area);
   create_tool  (game_area);
-  create_score_table();
+  create_score_table(); // g_game.score_list
+  create_dialog(); // hint.js
   // event
   document.addEventListener('keydown', on_keyboard);
   const rule = document.getElementById('rule_tit_but');
@@ -730,7 +797,8 @@ const get_game_url = () => {
       book.hidden = true;
     }
   });
-  // 問題
+  // 問題をつくる
+  // score_list != null
   const id = get_game_url(); // ?id=Sxxx があればソレ、無いなら乱数
   const su = new Sudoku(id);
   su.create_quest().then( q => {
@@ -738,11 +806,10 @@ const get_game_url = () => {
     g_game.ans     = q.ans;
     g_game.hint    = q.hint;
     g_game.lv      = Math.max(1, q.lv - 1);
-    g_game.game_id = 'S' + id.toString(16).toUpperCase();
+    g_game.game_id = make_id_str(id);
     //dump(q.ans);
     set_start_button();
     create_next(make_random_id());
   });
 })();
-
 
